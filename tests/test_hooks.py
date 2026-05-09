@@ -27,7 +27,7 @@ class HookTests(unittest.TestCase):
         manifest = json.loads((Path(__file__).resolve().parents[1] / "hooks.json").read_text(encoding="utf-8"))
         self.assertEqual(
             set(manifest["hooks"]),
-            {"sessionStart", "userPromptSubmit", "preToolUse", "postToolUse", "permissionRequest", "stop"},
+            {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest", "Stop"},
         )
 
     def test_blocks_product_write_before_execute(self) -> None:

@@ -1,19 +1,22 @@
-# SuperTeam Codex 1.1.1 Release Notes
+# SuperTeam Codex 1.1.2 Release Notes
 
 Release date: 2026-05-09
 
 ## Summary
 
-SuperTeam Codex 1.1.1 is a patch release that makes GitHub the canonical
-install and update source. It keeps the complete G1-G7 Codex-native runtime from
-1.1.0.
+SuperTeam Codex 1.1.2 is a patch release that fixes Codex-native plugin hook
+discovery. It keeps the complete G1-G7 Codex-native runtime and hook dispatcher
+behavior from 1.1.1.
 
 ## Release Highlights
 
-- Canonical source: `https://github.com/frankiezheng110/superteam_codex`.
-- Added `scripts/Install-FromGitHub.ps1` for install/update from GitHub.
-- Local plugin and runtime-cache paths are now treated as generated install
-  artifacts, not the update source.
+- Native hook discovery now uses Codex manifest event names: `SessionStart`,
+  `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, and
+  `Stop`.
+- Hook commands still delegate to `hooks/codex_hook.py`, preserving the existing
+  SuperTeam Codex runtime and event-tree mechanism.
+- Hook manifest tests now assert the Codex-native event-name surface.
+- Canonical source remains `https://github.com/frankiezheng110/superteam_codex`.
 - Full G1-G7 event tree and CLI surface.
 - G4 execution with TDD RED/GREEN evidence and pre-work UI guidance.
 - G5 review with reviewer/designer gates and return-to-G4 repair on BLOCK.
@@ -43,7 +46,7 @@ $installer = Join-Path $env:TEMP "Install-FromGitHub.ps1"
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/frankiezheng110/superteam_codex/main/scripts/Install-FromGitHub.ps1" `
   -OutFile $installer
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.1
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.2
 ```
 
 ## Release Asset
@@ -51,5 +54,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.1
 The clean source archive should be generated at:
 
 ```text
-dist/superteam-codex-1.1.1.zip
+dist/superteam-codex-1.1.2.zip
 ```

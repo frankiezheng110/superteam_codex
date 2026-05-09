@@ -70,7 +70,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref main
 For a pinned release:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.1
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.2
 ```
 
 The GitHub installer clones or updates the repository under the user's Codex

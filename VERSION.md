@@ -1,16 +1,20 @@
 # SuperTeam Codex Version
 
-Version: 1.1.1
+Version: 1.1.2
 Release date: 2026-05-09
 
 ## Summary
 
-Patch release that makes GitHub the canonical install and update source.
+Patch release that fixes Codex-native plugin hook discovery.
 
-This version keeps the complete G1-G7 runtime from 1.1.0 and updates the
-distribution workflow:
+This version keeps the complete G1-G7 runtime from 1.1.1 and updates the
+native Codex hook manifest:
 
-- GitHub repository `https://github.com/frankiezheng110/superteam_codex` is the canonical install and update source;
-- `scripts/Install-FromGitHub.ps1` clones or updates that repository before installing;
-- local Codex plugin and runtime-cache directories remain generated installation artifacts, not the update source;
-- release packaging still excludes `.superteam_codex`, `.hook-trace-tests`, `dist`, `build`, `__pycache__`, and Python bytecode.
+- plugin hook event names now use the Codex manifest names `SessionStart`,
+  `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, and
+  `Stop`;
+- each hook still delegates to `hooks/codex_hook.py`, preserving the existing
+  SuperTeam Codex runtime and event-tree behavior;
+- hook manifest tests now assert the Codex-native event-name surface;
+- release packaging still excludes `.superteam_codex`, `.hook-trace-tests`,
+  `dist`, `build`, `__pycache__`, and Python bytecode.
