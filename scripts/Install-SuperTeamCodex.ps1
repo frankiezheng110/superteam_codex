@@ -3,6 +3,7 @@ param(
   [string]$PluginRoot = (Join-Path $env:USERPROFILE "plugins\superteam_codex"),
   [string]$MarketplacePath = (Join-Path $env:USERPROFILE ".agents\plugins\marketplace.json"),
   [string]$CacheRoot = (Join-Path $env:USERPROFILE ".codex\plugins\cache\frankie-local\superteam-codex"),
+  [string]$RepositoryUrl = "https://github.com/frankiezheng110/superteam_codex",
   [switch]$SkipCacheRefresh
 )
 
@@ -121,3 +122,4 @@ Write-Host "Updated marketplace at $MarketplacePath"
 if (-not $SkipCacheRefresh) {
   Write-Host "Refreshed runtime cache at $(Join-Path $cacheRootResolved $pluginVersion)"
 }
+Write-Host "Canonical update source: $RepositoryUrl"

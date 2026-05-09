@@ -1,16 +1,19 @@
-# SuperTeam Codex 1.1.0 Release Notes
+# SuperTeam Codex 1.1.1 Release Notes
 
 Release date: 2026-05-09
 
 ## Summary
 
-SuperTeam Codex 1.1.0 is the first complete G1-G7 Codex-native release. It
-uses one global `mode.json:event_tree`, guidance-first hook-trace events, and
-stage evidence gates to keep implementation aligned with source, Pencil UI
-design, TDD, review, verification, and finish artifacts.
+SuperTeam Codex 1.1.1 is a patch release that makes GitHub the canonical
+install and update source. It keeps the complete G1-G7 Codex-native runtime from
+1.1.0.
 
 ## Release Highlights
 
+- Canonical source: `https://github.com/frankiezheng110/superteam_codex`.
+- Added `scripts/Install-FromGitHub.ps1` for install/update from GitHub.
+- Local plugin and runtime-cache paths are now treated as generated install
+  artifacts, not the update source.
 - Full G1-G7 event tree and CLI surface.
 - G4 execution with TDD RED/GREEN evidence and pre-work UI guidance.
 - G5 review with reviewer/designer gates and return-to-G4 repair on BLOCK.
@@ -33,11 +36,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Test-SuperTeamCodex.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\New-ReleaseArchive.ps1
 ```
 
+Install or update from GitHub:
+
+```powershell
+$installer = Join-Path $env:TEMP "Install-FromGitHub.ps1"
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/frankiezheng110/superteam_codex/main/scripts/Install-FromGitHub.ps1" `
+  -OutFile $installer
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.1
+```
+
 ## Release Asset
 
 The clean source archive should be generated at:
 
 ```text
-dist/superteam-codex-1.1.0.zip
+dist/superteam-codex-1.1.1.zip
 ```
-

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.1 - 2026-05-09
+
+- Made `https://github.com/frankiezheng110/superteam_codex` the canonical
+  install and update source.
+- Added `scripts/Install-FromGitHub.ps1` to clone or update the GitHub
+  repository before syncing the Codex plugin and runtime cache.
+- Updated README and release notes to avoid treating local development paths as
+  the standard install/update source.
+
 ## 1.1.0 - 2026-05-09
 
 - Completed the Codex-native SuperTeam G1-G7 runtime.
@@ -21,4 +30,3 @@
 
 - Initial Codex plugin baseline with source-pack, UI-map, and early workflow
   runtime support.
-
