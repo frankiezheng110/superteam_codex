@@ -1,0 +1,47 @@
+{
+  "_comment": "Codex-native hook manifest for SuperTeam Codex. Hooks are guidance-first and delegate workflow state decisions to the Python runtime.",
+  "hooks": {
+    "sessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"./hooks/codex_hook.py\" SessionStart" }
+        ]
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"./hooks/codex_hook.py\" UserPromptSubmit" }
+        ]
+      }
+    ],
+    "preToolUse": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"./hooks/codex_hook.py\" PreToolUse" }
+        ]
+      }
+    ],
+    "postToolUse": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"./hooks/codex_hook.py\" PostToolUse" }
+        ]
+      }
+    ],
+    "permissionRequest": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"./hooks/codex_hook.py\" PermissionRequest" }
+        ]
+      }
+    ],
+    "stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"./hooks/codex_hook.py\" Stop" }
+        ]
+      }
+    ]
+  }
+}

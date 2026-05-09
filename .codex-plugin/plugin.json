@@ -1,0 +1,42 @@
+{
+  "name": "superteam-codex",
+  "version": "1.1.0",
+  "description": "Complete Codex-native SuperTeam G1-G7 runtime with guidance-first hook-trace, TDD, UI restoration, review, verification, repair-loop, and finish gates.",
+  "author": {
+    "name": "frankiezheng110",
+    "url": "https://github.com/frankiezheng110"
+  },
+  "homepage": "https://github.com/frankiezheng110/superteam_codex",
+  "repository": "https://github.com/frankiezheng110/superteam_codex",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "plugin",
+    "workflow",
+    "planning",
+    "verification",
+    "ui-design",
+    "pencil",
+    "source-of-truth"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks.json",
+  "interface": {
+    "displayName": "SuperTeam Codex",
+    "shortDescription": "Complete Codex-native G1-G7 delivery workflow.",
+    "longDescription": "SuperTeam Codex is a complete Codex-native rewrite of the SuperTeam workflow. It exposes thin skills backed by a Python runtime that drives one global event tree from G1 through G7, guides agents before work through hook-trace, binds spawned roles to original SuperTeam agent definitions, enforces G4 TDD and UI-contract evidence, returns G5/G6 failures to G4 repair, and closes with verifier PASS plus finish artifacts.",
+    "developerName": "frankiezheng110",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/frankiezheng110/superteam_codex",
+    "defaultPrompt": [
+      "Run the full G1-G7 SuperTeam Codex workflow on this task.",
+      "Advance the active SuperTeam Codex hook-trace event.",
+      "Verify this delivery against the feature, UI, test, and finish gates."
+    ],
+    "brandColor": "#0F766E"
+  }
+}

@@ -1,0 +1,1643 @@
+{
+  "version": "2.11",
+  "children": [
+    {
+      "type": "frame",
+      "id": "6e7Q6",
+      "x": 0,
+      "y": 0,
+      "name": "S1-登录页",
+      "width": 1440,
+      "height": 900,
+      "fill": "#F5F7FA",
+      "layout": "vertical",
+      "gap": 20,
+      "padding": 64,
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "0J6nY",
+          "name": "minimal-vr-headset-logo",
+          "width": 108,
+          "height": 68,
+          "fill": "#111827",
+          "cornerRadius": 28,
+          "gap": 8,
+          "padding": 14,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "jtMUI",
+              "name": "left-lens",
+              "width": 30,
+              "height": 30,
+              "fill": "#FFFFFF",
+              "cornerRadius": 14
+            },
+            {
+              "type": "frame",
+              "id": "HJryi",
+              "name": "center-bridge",
+              "width": 10,
+              "height": 18,
+              "fill": "#FFFFFF",
+              "cornerRadius": 5
+            },
+            {
+              "type": "frame",
+              "id": "8HhMx",
+              "name": "right-lens",
+              "width": 30,
+              "height": 30,
+              "fill": "#FFFFFF",
+              "cornerRadius": 14
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "BeOcw",
+          "name": "platform-title",
+          "fill": "#111827",
+          "content": "QUEST游戏管理平台",
+          "fontFamily": "Inter",
+          "fontSize": 40,
+          "fontWeight": "700"
+        },
+        {
+          "type": "frame",
+          "id": "q1D1B",
+          "name": "account-password-form",
+          "width": 440,
+          "height": 360,
+          "fill": "#FFFFFF",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 14,
+          "padding": 28,
+          "children": [
+            {
+              "type": "text",
+              "id": "tH50j",
+              "name": "form-title",
+              "fill": "#111827",
+              "content": "账号密码登录",
+              "fontFamily": "Inter",
+              "fontSize": 22,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "w6EpS",
+              "name": "account-label",
+              "fill": "#334155",
+              "content": "账号",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "9EAd9",
+              "name": "account-input",
+              "width": "fill_container",
+              "height": 44,
+              "fill": "#F8FAFC",
+              "cornerRadius": 6,
+              "padding": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "RCPkS",
+                  "name": "account-placeholder",
+                  "fill": "#64748B",
+                  "content": "请输入账号",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "bSgIW",
+              "name": "password-label",
+              "fill": "#334155",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "GKa3Y",
+              "name": "password-input",
+              "width": "fill_container",
+              "height": 44,
+              "fill": "#F8FAFC",
+              "cornerRadius": 6,
+              "padding": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "rMfN5",
+                  "name": "password-placeholder",
+                  "fill": "#64748B",
+                  "content": "请输入密码",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "6Xbim",
+              "name": "login-button",
+              "width": "fill_container",
+              "height": 46,
+              "fill": "#2563EB",
+              "cornerRadius": 6,
+              "padding": 12,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "RzmRi",
+                  "name": "login-button-text",
+                  "fill": "#FFFFFF",
+                  "content": "登录",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "KTo9a",
+      "x": 1560,
+      "y": 0,
+      "name": "S2-游戏平台主界面",
+      "width": 1440,
+      "height": 900,
+      "fill": "#E8EDF5",
+      "gap": 22,
+      "padding": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "m10yF",
+          "name": "game-platform-content",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#E8EDF5",
+          "layout": "vertical",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "peR2U",
+              "name": "game-filter-area",
+              "width": "fill_container",
+              "height": 130,
+              "fill": "#FFFFFF",
+              "cornerRadius": 8,
+              "layout": "vertical",
+              "gap": 14,
+              "padding": 18,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "yPK34",
+                  "name": "game-category-tabs",
+                  "width": "fill_container",
+                  "height": 38,
+                  "gap": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "NOyI0",
+                      "name": "category-全部",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#2563EB",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "bJRId",
+                          "name": "category-text-全部",
+                          "fill": "#FFFFFF",
+                          "content": "全部",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "dTDMz",
+                      "name": "category-热门",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "FbHk5",
+                          "name": "category-text-热门",
+                          "fill": "#334155",
+                          "content": "热门",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EndEm",
+                      "name": "category-最新",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "BIQfV",
+                          "name": "category-text-最新",
+                          "fill": "#334155",
+                          "content": "最新",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "kN2TN",
+                      "name": "category-模拟",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "VDuDa",
+                          "name": "category-text-模拟",
+                          "fill": "#334155",
+                          "content": "模拟",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Bvlfz",
+                      "name": "category-休闲",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Tky9C",
+                          "name": "category-text-休闲",
+                          "fill": "#334155",
+                          "content": "休闲",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "p5rz8",
+                      "name": "category-运动",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ooQG9",
+                          "name": "category-text-运动",
+                          "fill": "#334155",
+                          "content": "运动",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "YJmJV",
+                      "name": "category-射击",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n3vvW",
+                          "name": "category-text-射击",
+                          "fill": "#334155",
+                          "content": "射击",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ntTlx",
+                      "name": "category-射箭",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "1r3Ob",
+                          "name": "category-text-射箭",
+                          "fill": "#334155",
+                          "content": "射箭",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "oMEdF",
+                      "name": "category-塔防",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "4P8gx",
+                          "name": "category-text-塔防",
+                          "fill": "#334155",
+                          "content": "塔防",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "sbLdv",
+                      "name": "category-恐怖",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ueC6f",
+                          "name": "category-text-恐怖",
+                          "fill": "#334155",
+                          "content": "恐怖",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "3RgTE",
+                      "name": "category-联机",
+                      "width": "fill_container",
+                      "height": 34,
+                      "fill": "#EEF2F7",
+                      "cornerRadius": 17,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "JQwjQ",
+                          "name": "category-text-联机",
+                          "fill": "#334155",
+                          "content": "联机",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "B4VhZ",
+                  "name": "game-search-box",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#F1F5F9",
+                  "cornerRadius": 6,
+                  "padding": 14,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "H9mwZ",
+                      "name": "game-search-placeholder",
+                      "fill": "#64748B",
+                      "content": "搜索游戏名称",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ykH7S",
+              "name": "game-card-display-area",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": 14,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "X4XSj",
+                  "name": "game-card-row-1",
+                  "width": "fill_container",
+                  "height": 196,
+                  "gap": 14,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "DF5fo",
+                      "name": "game-card-01-我是猫",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "47Q1U",
+                          "name": "game-card-01-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-01.jpg",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "OYhnh",
+                          "name": "game-card-01-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "rQyOB",
+                              "name": "game-card-01-name",
+                              "fill": "#111827",
+                              "content": "我是猫",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "peTcL",
+                      "name": "game-card-02-我是猴",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "qoCYS",
+                          "name": "game-card-02-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-02.jpg",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "2D17c",
+                          "name": "game-card-02-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "8Dlem",
+                              "name": "game-card-02-name",
+                              "fill": "#111827",
+                              "content": "我是猴",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "WGocT",
+                      "name": "game-card-03-我的世界",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "gCXHr",
+                          "name": "game-card-03-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-03.jpg",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "gh4Q1",
+                          "name": "game-card-03-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "tvEYz",
+                              "name": "game-card-03-name",
+                              "fill": "#111827",
+                              "content": "我的世界",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "iJHTH",
+                      "name": "game-card-04-永远的宠物",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "O5kQT",
+                          "name": "game-card-04-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-04.jpg",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "WiKNJ",
+                          "name": "game-card-04-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "hccIP",
+                              "name": "game-card-04-name",
+                              "fill": "#111827",
+                              "content": "永远的宠物",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "DG12i",
+                  "name": "game-card-row-2",
+                  "width": "fill_container",
+                  "height": 196,
+                  "gap": 14,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "cLggQ",
+                      "name": "game-card-05-零食达人",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "7snXu",
+                          "name": "game-card-05-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-05.jpg",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "dcOVO",
+                          "name": "game-card-05-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "CLyyH",
+                              "name": "game-card-05-name",
+                              "fill": "#111827",
+                              "content": "零食达人",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ElMf7",
+                      "name": "game-card-06-甜蜜冲击VR",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "WaanM",
+                          "name": "game-card-06-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-06.jpg",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "QoSkb",
+                          "name": "game-card-06-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "kZl12",
+                              "name": "game-card-06-name",
+                              "fill": "#111827",
+                              "content": "甜蜜冲击VR",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "hGNrX",
+                      "name": "game-card-07-时空猎人",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "CQQQJ",
+                          "name": "game-card-07-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-07.jpg",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "9tkFI",
+                          "name": "game-card-07-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "aEFJY",
+                              "name": "game-card-07-name",
+                              "fill": "#111827",
+                              "content": "时空猎人",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "PwGUa",
+                      "name": "game-card-08-旅店老板VR",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Ne5zR",
+                          "name": "game-card-08-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-08.jpg",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "KhGOs",
+                          "name": "game-card-08-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "KIXDj",
+                              "name": "game-card-08-name",
+                              "fill": "#111827",
+                              "content": "旅店老板VR",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "JtMZr",
+                  "name": "game-card-row-3",
+                  "width": "fill_container",
+                  "height": 196,
+                  "gap": 14,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "nNCY9",
+                      "name": "game-card-09-疯狂出租车VR",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "cDAD7",
+                          "name": "game-card-09-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-09.webp",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Xvt7p",
+                          "name": "game-card-09-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "iu4HY",
+                              "name": "game-card-09-name",
+                              "fill": "#111827",
+                              "content": "疯狂出租车VR",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "U71uM",
+                      "name": "game-card-10-愤怒的小鸟VR",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 8,
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "kMbe6",
+                          "name": "game-card-10-cover",
+                          "width": "fill_container",
+                          "height": 150,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "assets/game-10.jpg",
+                            "mode": "stretch"
+                          },
+                          "cornerRadius": 8
+                        },
+                        {
+                          "type": "frame",
+                          "id": "cD97e",
+                          "name": "game-card-10-title-area",
+                          "width": "fill_container",
+                          "height": 46,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "0jGWB",
+                              "name": "game-card-10-name",
+                              "fill": "#111827",
+                              "content": "愤怒的小鸟VR",
+                              "textAlign": "center",
+                              "fontFamily": "Inter",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "urP9c",
+                      "name": "game-card-empty-slot-11",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#E8EDF5",
+                      "cornerRadius": 8
+                    },
+                    {
+                      "type": "frame",
+                      "id": "lBSgP",
+                      "name": "game-card-empty-slot-12",
+                      "width": 246,
+                      "height": 196,
+                      "fill": "#E8EDF5",
+                      "cornerRadius": 8
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Ub5Wc",
+          "name": "quest-device-sidebar",
+          "width": 320,
+          "height": "fill_container",
+          "fill": "#FFFFFF",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "bGdgd",
+              "name": "device-sidebar-title",
+              "fill": "#111827",
+              "content": "Quest机位",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "fR4kt",
+              "name": "quest-device-list",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": 10,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "uMia8",
+                  "name": "device-card-A01",
+                  "width": "fill_container",
+                  "height": 86,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "gap": 5,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Uy9wG",
+                      "name": "device-no-A01",
+                      "fill": "#111827",
+                      "content": "机位 A01",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "LZDdl",
+                      "name": "device-ip-A01",
+                      "fill": "#64748B",
+                      "content": "IP 192.168.1.31",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "F2yKo",
+                      "name": "device-status-A01",
+                      "fill": "#16A34A",
+                      "content": "已开机 / 已连接 / I Am Cat",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "lXwKP",
+                  "name": "device-card-A02",
+                  "width": "fill_container",
+                  "height": 86,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "gap": 5,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "0cMaM",
+                      "name": "device-no-A02",
+                      "fill": "#111827",
+                      "content": "机位 A02",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "EMEDZ",
+                      "name": "device-ip-A02",
+                      "fill": "#64748B",
+                      "content": "IP 192.168.1.32",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "86ke3",
+                      "name": "device-status-A02",
+                      "fill": "#16A34A",
+                      "content": "已开机 / 已连接 / Reality Guard",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "0IFw3",
+                  "name": "device-card-A03",
+                  "width": "fill_container",
+                  "height": 86,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "gap": 5,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "offLo",
+                      "name": "device-no-A03",
+                      "fill": "#111827",
+                      "content": "机位 A03",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "H8yrk",
+                      "name": "device-ip-A03",
+                      "fill": "#64748B",
+                      "content": "IP 192.168.1.33",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "gShQ0",
+                      "name": "device-status-A03",
+                      "fill": "#2563EB",
+                      "content": "已开机 / 已连接 / 待机",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "0Zdq0",
+                  "name": "device-card-A04",
+                  "width": "fill_container",
+                  "height": 86,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "gap": 5,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Uxwtw",
+                      "name": "device-no-A04",
+                      "fill": "#111827",
+                      "content": "机位 A04",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "4rVny",
+                      "name": "device-ip-A04",
+                      "fill": "#64748B",
+                      "content": "IP 192.168.1.34",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "lJFsl",
+                      "name": "device-status-A04",
+                      "fill": "#64748B",
+                      "content": "已关机 / 未连接 / 未启动",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "zovlv",
+                  "name": "device-card-A05",
+                  "width": "fill_container",
+                  "height": 86,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "gap": 5,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "qSjcK",
+                      "name": "device-no-A05",
+                      "fill": "#111827",
+                      "content": "机位 A05",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Zql8j",
+                      "name": "device-ip-A05",
+                      "fill": "#64748B",
+                      "content": "IP 192.168.1.35",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "UpCa6",
+                      "name": "device-status-A05",
+                      "fill": "#16A34A",
+                      "content": "已开机 / 已连接 / Honey Pot",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "GHXWV",
+                  "name": "device-card-A06",
+                  "width": "fill_container",
+                  "height": 86,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "gap": 5,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "p0Tzc",
+                      "name": "device-no-A06",
+                      "fill": "#111827",
+                      "content": "机位 A06",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "wz5FB",
+                      "name": "device-ip-A06",
+                      "fill": "#64748B",
+                      "content": "IP 192.168.1.36",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ofIJx",
+                      "name": "device-status-A06",
+                      "fill": "#16A34A",
+                      "content": "已开机 / 已连接 / Tower Defense",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "GOUYH",
+                  "name": "device-card-A07",
+                  "width": "fill_container",
+                  "height": 86,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "gap": 5,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "lHRu6",
+                      "name": "device-no-A07",
+                      "fill": "#111827",
+                      "content": "机位 A07",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "8ucjh",
+                      "name": "device-ip-A07",
+                      "fill": "#64748B",
+                      "content": "IP 192.168.1.37",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Nqdvt",
+                      "name": "device-status-A07",
+                      "fill": "#2563EB",
+                      "content": "已开机 / 已连接 / 待机",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "1NfdB",
+                  "name": "device-card-A08",
+                  "width": "fill_container",
+                  "height": 86,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "gap": 5,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "L55tG",
+                      "name": "device-no-A08",
+                      "fill": "#111827",
+                      "content": "机位 A08",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "QMd9U",
+                      "name": "device-ip-A08",
+                      "fill": "#64748B",
+                      "content": "IP 192.168.1.38",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "yLcJV",
+                      "name": "device-status-A08",
+                      "fill": "#DC2626",
+                      "content": "离线 / 未连接 / 未启动",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "mGKEq",
+      "x": 3120,
+      "y": 0,
+      "name": "S3-设备绑定页",
+      "width": 1440,
+      "height": 900,
+      "fill": "#F1F5F9",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 40,
+      "children": [
+        {
+          "type": "text",
+          "id": "1CCbA",
+          "name": "Binding title",
+          "fill": "#111827",
+          "content": "Bind Quest3, TV and play station",
+          "fontFamily": "Inter",
+          "fontSize": 32,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "SJhsE",
+          "name": "Binding checklist",
+          "width": "fill_container",
+          "height": 460,
+          "fill": "#FFFFFF",
+          "cornerRadius": 8,
+          "gap": 16,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "wrWoT",
+              "name": "Binding steps",
+              "fill": "#334155",
+              "content": "Scan device -> pair TV -> confirm station",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "sOL4v",
+      "x": 4680,
+      "y": 0,
+      "name": "S4-游戏安装页",
+      "width": 1440,
+      "height": 900,
+      "fill": "#F8FAFC",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 40,
+      "children": [
+        {
+          "type": "text",
+          "id": "LlXTp",
+          "name": "Install title",
+          "fill": "#111827",
+          "content": "Install selected VR game to station",
+          "fontFamily": "Inter",
+          "fontSize": 32,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "IqwVj",
+          "name": "Install queue",
+          "width": "fill_container",
+          "height": 460,
+          "fill": "#FFFFFF",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "9N8nB",
+              "name": "Install steps",
+              "fill": "#334155",
+              "content": "Choose game -> push to Quest3 -> verify ready state",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "rHoNj",
+      "x": 6240,
+      "y": 0,
+      "name": "S5-游戏启动关闭投屏状态页",
+      "width": 1440,
+      "height": 900,
+      "fill": "#F1F5F9",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 40,
+      "children": [
+        {
+          "type": "text",
+          "id": "BXQCz",
+          "name": "Session control title",
+          "fill": "#111827",
+          "content": "Start game, close game, monitor live status",
+          "fontFamily": "Inter",
+          "fontSize": 32,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "GP8LY",
+          "name": "Session control panel",
+          "width": "fill_container",
+          "height": 500,
+          "fill": "#FFFFFF",
+          "cornerRadius": 8,
+          "gap": 20,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "QZqYw",
+              "name": "Session controls",
+              "fill": "#334155",
+              "content": "Start / close actions with Quest3 and TV cast status",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "VFbxt",
+      "x": 7800,
+      "y": 0,
+      "name": "S6-服务器游戏管理页",
+      "width": 1440,
+      "height": 900,
+      "fill": "#F8FAFC",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 40,
+      "children": [
+        {
+          "type": "text",
+          "id": "pRmwo",
+          "name": "Server title",
+          "fill": "#111827",
+          "content": "Manage server game catalog",
+          "fontFamily": "Inter",
+          "fontSize": 32,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "8Uvf4",
+          "name": "Game catalog table",
+          "width": "fill_container",
+          "height": 520,
+          "fill": "#FFFFFF",
+          "cornerRadius": 8,
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "7QNcP",
+              "name": "Catalog columns",
+              "fill": "#334155",
+              "content": "Game name / version / install package / enabled state",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "document",
+  "type": "frame",
+  "name": "SMS Design",
+  "width": 1440,
+  "height": 900,
+  "children": [
+    {
+      "id": "d86C1",
+      "type": "frame",
+      "name": "S0 Settings",
+      "width": 1440,
+      "height": 900,
+      "children": []
+    },
+    {
+      "id": "rakqk",
+      "type": "frame",
+      "name": "S1 Employee Info",
+      "width": 1440,
+      "height": 900,
+      "children": []
+    }
+  ]
+}
+
