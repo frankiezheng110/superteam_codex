@@ -15,13 +15,14 @@ Codex-native skills, hooks, state files, and verifiable gates.
 The plugin has three layers:
 
 1. Thin Codex skills under `skills/`.
-2. Audit-first Codex hooks through `hooks.json` and `hooks/codex_hook.py`.
+2. Internal hook-trace guards invoked by the SuperTeam runtime.
 3. A standard-library Python runtime under `superteam_codex/`.
 
-Skills explain how the agent must operate and call the runtime. Hooks protect
-against obvious workflow violations. The Python runtime owns state, source-pack
-discovery, Pencil frame inventory, feature-to-UI mapping, lifecycle changes,
-doctor checks, and gate validation.
+Skills explain how the agent must operate and call the runtime. Internal
+hook-trace guards protect against obvious workflow violations once a SuperTeam
+run is active. The Python runtime owns state, source-pack discovery, Pencil
+frame inventory, feature-to-UI mapping, lifecycle changes, doctor checks, and
+gate validation. The plugin deliberately does not register Codex global hooks.
 
 ## Project State
 
@@ -67,4 +68,3 @@ Target projects use `.superteam_codex/`, never the legacy `.superteam/` runtime:
 The first version ships with runtime code, skills, hooks, docs, fixtures, and
 tests. Validation must include standard-library unit tests and a realistic SMS
 fixture that proves missing Pencil frame references are caught before execution.
-

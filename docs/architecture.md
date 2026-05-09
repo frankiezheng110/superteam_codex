@@ -25,7 +25,7 @@ SuperTeam Codex is deliberately split into small runtime modules.
 - `tdd.py`: G4 RED/GREEN/deferred/blocked state machine and guidance messages.
 - `stages.py`: high-level workflow transitions and artifact creation.
 - `doctor.py`: health checks across state, sources, frame map, and gates.
-- `hooks.py`: Codex hook decision logic.
+- `hooks.py`: internal workflow hook-trace guard and guidance logic.
 - `cli.py`: stable command surface used by skills and tests.
 
 ## Design Rules
@@ -34,8 +34,10 @@ Markdown skills never become the source of runtime truth. They describe agent
 behavior and call the Python runtime. Runtime modules produce machine-readable
 JSON plus concise Markdown artifacts so later agents can audit what happened.
 
-Hook-trace is guidance-first. It should expose the active event, required
-artifacts, role contract, TDD state, UI contract, and evidence requirements
-before the agent acts. Blocking is reserved for workflow-invalid transitions,
-nested runs, skipped user gates, missing evidence at stage completion, or
-actions that would corrupt SuperTeam state.
+Hook-trace is guidance-first and internal to the SuperTeam workflow. It should
+expose the active event, required artifacts, role contract, TDD state, UI
+contract, and evidence requirements before the agent acts. Blocking is reserved
+for workflow-invalid transitions, nested runs, skipped user gates, missing
+evidence at stage completion, or actions that would corrupt SuperTeam state.
+The plugin does not register Codex global hooks; normal Codex sessions must not
+invoke SuperTeam hook code unless the workflow CLI/skills explicitly do so.

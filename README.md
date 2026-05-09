@@ -20,8 +20,6 @@ The runtime is source-of-truth driven:
 ```text
 .codex-plugin/plugin.json        Codex plugin manifest
 skills/                          Thin Codex skill entry points
-hooks.json                       Codex hook manifest
-hooks/codex_hook.py              Hook dispatcher
 superteam_codex/                 Python runtime
 templates/                       Artifact templates
 tests/                           Standard-library unittest suite
@@ -85,7 +83,7 @@ installed copy.
 git clone https://github.com/frankiezheng110/superteam_codex.git
 cd superteam_codex
 python -m unittest discover -s tests
-python -m compileall superteam_codex hooks
+python -m compileall superteam_codex
 python -m superteam_codex.cli --project . doctor
 ```
 

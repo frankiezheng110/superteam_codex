@@ -146,7 +146,7 @@ def _append_mode_hook_trace(
             {
                 "ts": utc_now(),
                 "hook": event,
-                "trigger": "native Codex hook",
+                "trigger": "SuperTeam internal hook-trace",
                 "stage": mode.get("stage"),
                 "active_leaf_event": _active_leaf_id(mode),
                 "tool": payload.get("tool") or payload.get("tool_name") or payload.get("name"),

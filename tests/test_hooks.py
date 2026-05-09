@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 import unittest
@@ -23,12 +22,9 @@ class HookTests(unittest.TestCase):
         shutil.copytree(FIXTURES / "sms_minimal", root)
         return temp, root
 
-    def test_hook_manifest_uses_codex_event_names(self) -> None:
-        manifest = json.loads((Path(__file__).resolve().parents[1] / "hooks.json").read_text(encoding="utf-8"))
-        self.assertEqual(
-            set(manifest["hooks"]),
-            {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest", "Stop"},
-        )
+    def test_plugin_manifest_does_not_expose_global_hooks(self) -> None:
+        manifest = (Path(__file__).resolve().parents[1] / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+        self.assertNotIn('"hooks"', manifest)
 
     def test_blocks_product_write_before_execute(self) -> None:
         temp, root = self.copy_fixture()

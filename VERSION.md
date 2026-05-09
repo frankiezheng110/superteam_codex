@@ -1,20 +1,20 @@
 # SuperTeam Codex Version
 
-Version: 1.1.2
+Version: 1.1.3
 Release date: 2026-05-09
 
 ## Summary
 
-Patch release that fixes Codex-native plugin hook discovery.
+Patch release that removes SuperTeam Codex from the Codex global hook surface.
 
-This version keeps the complete G1-G7 runtime from 1.1.1 and updates the
-native Codex hook manifest:
+This version keeps the complete G1-G7 runtime and hook-trace behavior from
+1.1.2, but makes the hook boundary explicit:
 
-- plugin hook event names now use the Codex manifest names `SessionStart`,
-  `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, and
-  `Stop`;
-- each hook still delegates to `hooks/codex_hook.py`, preserving the existing
-  SuperTeam Codex runtime and event-tree behavior;
-- hook manifest tests now assert the Codex-native event-name surface;
+- `.codex-plugin/plugin.json` exposes skills only and does not declare
+  plugin-level hooks;
+- SuperTeam hook logic remains internal to `superteam_codex.runtime.hooks` and
+  the explicit `g1-trace` through `g7-trace` workflow rails;
+- ordinary Codex sessions do not invoke SuperTeam hooks when no SuperTeam
+  workflow is active;
 - release packaging still excludes `.superteam_codex`, `.hook-trace-tests`,
   `dist`, `build`, `__pycache__`, and Python bytecode.

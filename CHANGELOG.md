@@ -1,12 +1,21 @@
 # Changelog
 
+## 1.1.3 - 2026-05-09
+
+- Removed SuperTeam Codex from the Codex global plugin hook surface.
+- Kept hook-trace enforcement inside the SuperTeam runtime and explicit
+  workflow commands.
+- Updated packaging, docs, and tests so the plugin manifest exposes skills but
+  does not declare `hooks`.
+
 ## 1.1.2 - 2026-05-09
 
 - Fixed Codex-native plugin hook discovery by using Codex manifest event names:
   `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`,
   `PermissionRequest`, and `Stop`.
-- Preserved the existing SuperTeam Codex hook dispatcher and workflow runtime;
-  hooks still delegate through `hooks/codex_hook.py`.
+- Added Codex manifest event-name compatibility for the then-experimental
+  plugin-hook path. This path is superseded by 1.1.3, which removes
+  plugin-level hooks from the runtime surface.
 - Updated hook manifest tests to assert the native event-name surface.
 
 ## 1.1.1 - 2026-05-09
