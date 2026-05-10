@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .agent_registry import build_agent_roster, ensure_agent_roster, validate_agent_roster
 from .event_tree import (
     EVENT_STATUS_VALUES,
     EVENT_TERMINAL_STATUSES,
@@ -61,6 +62,38 @@ def load_project(ws: Workspace) -> dict[str, Any] | None:
     return read_json(ws.project_path, None)
 
 
+def validate_agent_slots(mode: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    slots = mode.get("agent_slots")
+    if not isinstance(slots, dict):
+        return ["agent_slots must be an object"]
+
+    calls = (mode.get("orchestrator") or {}).get("agent_calls")
+    if calls is None:
+        return errors
+    if not isinstance(calls, list):
+        return ["orchestrator.agent_calls must be a list"]
+
+    role_to_ids: dict[str, set[str]] = {}
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        role = str(call.get("role") or "").strip()
+        agent_id = str(call.get("agent_id") or "").strip()
+        if not role or not agent_id:
+            continue
+        role_to_ids.setdefault(role, set()).add(agent_id)
+
+    for role, agent_ids in sorted(role_to_ids.items()):
+        slot = slots.get(role)
+        slot_id = str(slot.get("agent_id") or "").strip() if isinstance(slot, dict) else ""
+        if len(agent_ids) > 1:
+            errors.append(f"agent role {role} has multiple agent_ids: {sorted(agent_ids)}")
+        if slot_id and agent_ids and agent_ids != {slot_id}:
+            errors.append(f"agent role {role} calls do not match agent_slots id {slot_id}")
+    return errors
+
+
 def validate_mode(mode: dict[str, Any] | None) -> list[str]:
     errors: list[str] = []
     if not isinstance(mode, dict):
@@ -77,11 +110,28 @@ def validate_mode(mode: dict[str, Any] | None) -> list[str]:
         "run_dir",
         "task",
         "event_tree",
+        "g1_approval",
+        "g2_contract",
+        "g2_approval",
+        "g3_contract",
+        "g3_approval",
+        "g4_contract",
+        "g5_contract",
+        "g6_contract",
+        "g7_contract",
+        "orchestrator",
+        "inspector",
+        "agent_roster",
+        "agent_slots",
+        "guard",
+        "quality_gates",
     ]
     for key in required:
         if key not in mode:
             errors.append(f"missing mode field: {key}")
     errors.extend(validate_event_tree(mode.get("event_tree"), mode.get("stage")))
+    errors.extend(validate_agent_roster(mode))
+    errors.extend(validate_agent_slots(mode))
     if mode.get("schema") != STATE_SCHEMA:
         errors.append(f"unexpected mode schema: {mode.get('schema')!r}")
     if mode.get("plugin") != "superteam_codex":
@@ -91,6 +141,155 @@ def validate_mode(mode: dict[str, Any] | None) -> list[str]:
     if mode.get("project_lifecycle") not in {"running", "paused", "ended", "complete"}:
         errors.append(f"unexpected project_lifecycle: {mode.get('project_lifecycle')!r}")
     return errors
+
+
+def ensure_mode_runtime_defaults(mode: dict[str, Any]) -> dict[str, Any]:
+    mode.setdefault(
+        "g1_approval",
+        {
+            "status": "pending",
+            "approved_by": None,
+            "approved_at": None,
+            "note": "",
+        },
+    )
+    mode.setdefault(
+        "g2_contract",
+        {
+            "status": "pending",
+            "ui_authority": "pencil",
+            "project_definition": None,
+            "source_review": None,
+            "ui": None,
+            "design_decisions": [],
+        },
+    )
+    mode["g2_contract"].setdefault("design_decisions", [])
+    mode.setdefault(
+        "g2_approval",
+        {
+            "status": "pending",
+            "approved_by": None,
+            "approved_at": None,
+            "note": "",
+        },
+    )
+    mode.setdefault(
+        "g3_contract",
+        {
+            "status": "pending",
+            "deliverables": {},
+            "implementation_surface": None,
+            "ui_code_map": None,
+            "layout_spec": None,
+            "design_tokens": None,
+            "interaction_state_map": None,
+            "visual_acceptance": None,
+            "work_items": [],
+            "execution_plan": None,
+        },
+    )
+    mode.setdefault(
+        "g3_approval",
+        {
+            "status": "pending",
+            "approved_by": None,
+            "approved_at": None,
+            "note": "",
+        },
+    )
+    mode.setdefault(
+        "g4_contract",
+        {
+            "status": "pending",
+            "execution_plan": None,
+            "executor": None,
+            "execution_evidence": None,
+            "polish": None,
+            "tdd": {},
+        },
+    )
+    mode.setdefault(
+        "g5_contract",
+        {
+            "status": "pending",
+            "review_inputs": [],
+            "reviewer": None,
+            "review_evidence": None,
+            "ui_quality": {"required": False, "designer": None},
+            "verdict": None,
+            "findings": [],
+        },
+    )
+    mode.setdefault(
+        "g6_contract",
+        {
+            "status": "pending",
+            "verification_inputs": [],
+            "verifier": None,
+            "verification_evidence": None,
+            "verdict": None,
+            "delivery_confidence": None,
+            "findings": [],
+        },
+    )
+    mode.setdefault(
+        "g7_contract",
+        {
+            "status": "pending",
+            "finish_inputs": [],
+            "inspector": None,
+            "inspector_report": None,
+            "writer": None,
+            "finish_artifacts": {},
+        },
+    )
+    mode.setdefault(
+        "orchestrator",
+        {
+            "role": "main_session_orchestrator",
+            "spawn_decision": "not_required",
+            "spawn_status": "not_required",
+            "expected_agent": None,
+            "active_event": None,
+            "hook_instruction": "",
+            "agent_calls": [],
+        },
+    )
+    mode["orchestrator"].setdefault("agent_calls", [])
+    ensure_agent_roster(mode)
+    mode.setdefault("agent_slots", {})
+    mode.setdefault(
+        "inspector",
+        {
+            "status": "not_run",
+            "active_event": None,
+            "checkpoint_required": False,
+            "gate_check_report": {"status": "not_run", "checked_event": None, "findings": []},
+            "trace_coverage": {"status": "not_run", "missing_events": [], "discrepancies": []},
+        },
+    )
+    mode.setdefault(
+        "guard",
+        {
+            "strict_stop_guard": True,
+            "block_unmapped_ui_execution": True,
+            "block_placeholder_product_ui": True,
+            "block_nested_superteam_run": True,
+        },
+    )
+    mode.setdefault(
+        "quality_gates",
+        {
+            "source_pack": "required",
+            "pencil_design": "required_for_ui",
+            "feature_ui_map": "required_for_ui",
+            "execution_evidence": "required",
+            "review_evidence": "required",
+            "verification_evidence": "required",
+        },
+    )
+    return mode
 
 
 def create_mode(ws: Workspace, task: str, slug: str, run_dir: Path) -> dict[str, Any]:
@@ -188,6 +387,8 @@ def create_mode(ws: Workspace, task: str, slug: str, run_dir: Path) -> dict[str,
             "hook_instruction": "ask the active G1 question",
             "agent_calls": [],
         },
+        "agent_roster": build_agent_roster(),
+        "agent_slots": {},
         "inspector": {
             "status": "not_run",
             "active_event": None,

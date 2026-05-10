@@ -16,6 +16,13 @@ python "<plugin-root>\superteam_codex\cli.py" --project "<project-root>" g4-trac
 python "<plugin-root>\superteam_codex\cli.py" --project "<project-root>" g4-trace --signal tdd-green --work-item "<WI>" --command "<cmd>" --passed 1 --failed 0 "<why green>"
 ```
 
+Agent definition rule: before calling `executor` or `inspector`, read
+`mode.json.agent_roster.roles.<role>` and treat its definition path plus
+`rules_sha256` as the identity. Inspect `mode.json.agent_slots`; if the role
+already has an `agent_id`, continue that same agent with `send_input` and
+record the existing id. G4 repair loops reuse the existing executor; they must
+not spawn `executor-repair-*` agents.
+
 G4 guidance happens before implementation. UI work must consume G3 frame ids,
 layout specs, design tokens, interaction states, visual acceptance checks, and
 code targets before code is written. Do not submit executor result until TDD,

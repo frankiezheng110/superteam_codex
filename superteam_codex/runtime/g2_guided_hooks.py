@@ -49,6 +49,19 @@ TITLES = {
     "G2.COMPLETE": "关闭 G2",
 }
 
+TITLES.update(
+    {
+        "G2.MAP_PENCIL_TO_CODE_TARGETS": "Map Pencil to code targets",
+        "G2.EXTRACT_LAYOUT_SPEC": "Extract UI layout spec",
+        "G2.EXTRACT_DESIGN_TOKENS": "Extract design tokens",
+        "G2.MAP_INTERACTION_STATES": "Map interaction states",
+        "G2.WRITE_VISUAL_ACCEPTANCE": "Write visual acceptance contract",
+        "G2.CHECK_UI_IMPLEMENTATION_CONTRACT": "Check UI implementation contract",
+        "G2.WRITE_PENCIL_CONTRACT_MAP": "Write Pencil contract map",
+        "G2.CHECK_PENCIL_CONTRACT_MAP": "Check Pencil contract map",
+    }
+)
+
 INSPECTOR_AGENT = "inspector"
 G2_PENCIL_DESIGN_AGENT = "designer"
 G2_SPAWN_POLICIES: dict[str, dict[str, str]] = {
@@ -378,12 +391,32 @@ def run_g2_guided_simulation(
     tree["G2.CHECK_FEATURE_UI_MAP"]["payload"]["missing_features"] = []
     _advance(trace, tree, "G2.CHECK_FEATURE_UI_MAP", "agent 检查 UI 完整性")
 
+    tree["G2.MAP_PENCIL_TO_CODE_TARGETS"]["payload"]["ui_code_map"] = frames
+    _advance(trace, tree, "G2.MAP_PENCIL_TO_CODE_TARGETS", "write ui-code-map.json from Pencil design")
+    _advance(trace, tree, "G2.EXTRACT_LAYOUT_SPEC", "write ui-layout-spec.json from Pencil design")
+    _advance(trace, tree, "G2.EXTRACT_DESIGN_TOKENS", "write design-tokens.json from Pencil design")
+    _advance(trace, tree, "G2.MAP_INTERACTION_STATES", "write interaction-state-map.json from UI actions")
+    tree["G2.WRITE_VISUAL_ACCEPTANCE"]["payload"]["reference_screenshots"] = [
+        f"evidence/g2/reference/{frame_id}-reference.png" for frame_id in frames.values()
+    ]
+    _advance(trace, tree, "G2.WRITE_VISUAL_ACCEPTANCE", "write visual-acceptance.json and reference screenshots")
+    _advance(trace, tree, "G2.CHECK_UI_IMPLEMENTATION_CONTRACT", "check G2 UI design contract")
+    _advance(trace, tree, "G2.WRITE_PENCIL_CONTRACT_MAP", "write pencil-contract-map.json")
+    _advance(trace, tree, "G2.CHECK_PENCIL_CONTRACT_MAP", "check pencil-contract-map.json")
+
     _advance_spawned(trace, tree, "G2.DRAFT_DESIGN_CONTRACT", "agent 生成 G2 设计合同")
 
     tree["G2.DELIVER_PENCIL_DESIGN"]["payload"]["deliverables"] = [
         "Pencil .pen 原稿",
         "frame-inventory.json",
         "feature-ui-map.json",
+        "ui-code-map.json",
+        "ui-layout-spec.json",
+        "design-tokens.json",
+        "interaction-state-map.json",
+        "visual-acceptance.json",
+        "pencil-contract-map.json",
+        "evidence/g2/reference/*.png",
         "UI frame 清单",
         "G1 功能到 UI frame 映射",
     ]

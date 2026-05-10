@@ -1,7 +1,7 @@
 {
   "name": "superteam-codex",
-  "version": "1.1.3",
-  "description": "Complete Codex-native SuperTeam G1-G7 runtime with internal hook-trace, TDD, UI restoration, review, verification, repair-loop, and finish gates.",
+  "version": "1.1.5",
+  "description": "Complete Codex-native SuperTeam G1-G7 runtime with fixed agent definitions, internal hook-trace, structured contracts, TDD, UI restoration, review, verification, repair-loop, and finish gates.",
   "author": {
     "name": "frankiezheng110",
     "url": "https://github.com/frankiezheng110"
@@ -23,7 +23,7 @@
   "interface": {
     "displayName": "SuperTeam Codex",
     "shortDescription": "Complete Codex-native G1-G7 delivery workflow.",
-    "longDescription": "SuperTeam Codex is a complete Codex-native rewrite of the SuperTeam workflow. It exposes thin skills backed by a Python runtime that drives one global event tree from G1 through G7, guides agents before work through hook-trace, binds spawned roles to original SuperTeam agent definitions, enforces G4 TDD and UI-contract evidence, returns G5/G6 failures to G4 repair, and closes with verifier PASS plus finish artifacts.",
+    "longDescription": "SuperTeam Codex is a complete Codex-native rewrite of the SuperTeam workflow. It exposes thin skills backed by a Python runtime that drives one global event tree from G1 through G7, guides agents before work through internal hook-trace, binds role calls to fixed original SuperTeam agent definitions and reusable agent slots, enforces G4 TDD and UI-contract evidence, gates G5/G6/G7 through structured contract files, returns G5/G6 failures to G4 repair, and closes with verifier PASS plus finish artifacts.",
     "developerName": "frankiezheng110",
     "category": "Productivity",
     "capabilities": [

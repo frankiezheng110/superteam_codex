@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .agent_registry import agent_spawn_contract, validate_spawn_policies
+from .agent_registry import agent_reuse_hook_instruction, agent_spawn_contract, register_agent_call, validate_spawn_policies
 from .event_tree import (
     G3_EVENT_IDS,
     active_event,
@@ -17,6 +17,7 @@ from .event_tree import (
     transition_to_phase,
 )
 from .state import StateError, is_g2_complete, is_g3_complete, load_mode, save_mode, validate_mode
+from .visual_evidence import reference_screenshot_errors
 from .workspace import Workspace, file_sha256, read_json, rel_to, utc_now, write_json, write_text
 
 
@@ -26,10 +27,6 @@ G3_SPAWN_POLICIES: dict[str, dict[str, str]] = {
     "G3.SCAN_IMPLEMENTATION_SURFACE": {
         "agent": "architect",
         "scope": "scan project files, source manifest, and G1 technology constraints before G3 mapping",
-    },
-    "G3.MAP_PENCIL_TO_CODE_TARGETS": {
-        "agent": "designer",
-        "scope": "map Pencil frames and feature-ui-map entries to concrete code targets",
     },
     "G3.DRAFT_EXECUTION_PLAN": {
         "agent": "planner",
@@ -90,6 +87,7 @@ def _contract(mode: dict[str, Any]) -> dict[str, Any]:
     contract.setdefault("design_tokens", None)
     contract.setdefault("interaction_state_map", None)
     contract.setdefault("visual_acceptance", None)
+    contract.setdefault("pencil_contract_map", None)
     contract.setdefault("work_items", [])
     contract.setdefault("execution_plan", None)
     return contract
@@ -165,7 +163,7 @@ def _set_orchestrator(
     orch["expected_agent"] = expected_agent
     orch["expected_agent_definition"] = agent_spawn_contract(expected_agent) if expected_agent else None
     orch["active_event"] = event_id
-    orch["hook_instruction"] = instruction
+    orch["hook_instruction"] = agent_reuse_hook_instruction(expected_agent, instruction) if expected_agent else instruction
 
 
 def _clear_orchestrator(mode: dict[str, Any], event_id: str, instruction: str) -> None:
@@ -203,19 +201,9 @@ def _set_inspector(
     inspector["trace_coverage"] = {"status": "pass", "missing_events": [], "discrepancies": []}
 
 
-def _record_agent_call(mode: dict[str, Any], event_id: str, role: str, agent_id: str, status: str, scope: str) -> None:
-    calls = _orchestrator_state(mode).setdefault("agent_calls", [])
-    calls.append(
-        {
-            "ts": utc_now(),
-            "event": event_id,
-            "role": role,
-            "agent_id": agent_id,
-            "scope": scope,
-            "status": status,
-            **agent_spawn_contract(role),
-        }
-    )
+def _record_agent_call(mode: dict[str, Any], event_id: str, role: str, agent_id: str, status: str, scope: str) -> str:
+    call = register_agent_call(mode, event_id, role, agent_id, status, scope)
+    return str(call.get("agent_id") or "")
 
 
 def _complete_agent_call(mode: dict[str, Any], event_id: str, role: str, note: str) -> None:
@@ -355,8 +343,14 @@ def _require_g3_inspector(mode: dict[str, Any], event_id: str, instruction: str)
 
 
 def _record_g3_inspector_spawn(mode: dict[str, Any], event_id: str, agent_id: str) -> None:
-    call_id = agent_id.strip() or "inspector-local"
-    _record_agent_call(mode, event_id, INSPECTOR_AGENT, call_id, "spawned", f"inspect {event_id} trace before advance")
+    call_id = _record_agent_call(
+        mode,
+        event_id,
+        INSPECTOR_AGENT,
+        agent_id.strip() or "inspector-local",
+        "spawned",
+        f"inspect {event_id} trace before advance",
+    )
     _trace_g3_hook(
         mode,
         f"{event_id}.inspector_spawn_record",
@@ -842,6 +836,7 @@ def _default_visual_acceptance(mode: dict[str, Any]) -> dict[str, Any]:
     checks = []
     for item in ui_map.get("mappings", []):
         frame_id = str(item.get("frame_id") or "")
+        reference_screenshot = f"evidence/g2/reference/{frame_id}-reference.png"
         checks.append(
             {
                 "frame_id": frame_id,
@@ -852,6 +847,7 @@ def _default_visual_acceptance(mode: dict[str, Any]) -> dict[str, Any]:
                     "source_file": item.get("source_file"),
                     "frame_id": frame_id,
                     "export_required": True,
+                    "reference_screenshot": reference_screenshot,
                 },
                 "implementation_screenshot": f"evidence/g6/{frame_id}-implementation.png",
                 "comparison": {
@@ -859,6 +855,8 @@ def _default_visual_acceptance(mode: dict[str, Any]) -> dict[str, Any]:
                     "max_pixel_diff_ratio": 0.02,
                     "must_match": ["bounds", "text", "spacing", "alignment", "colors"],
                     "manual_review_required": True,
+                    "g5_report": "evidence/g5/visual-review-report.json",
+                    "g6_report": "evidence/g6/visual-acceptance-report.json",
                 },
             }
         )
@@ -882,6 +880,161 @@ def _write_visual_acceptance(mode: dict[str, Any], acceptance: dict[str, Any]) -
         viewport = check.get("viewport") or {}
         lines.append(f"- `{check.get('frame_id')}` viewport={viewport.get('width')}x{viewport.get('height')} route=`{check.get('route')}`")
     write_text(_path_in_run(mode, "visual-acceptance.md"), "\n".join(lines).rstrip() + "\n")
+
+
+def _reference_screenshot_target(frame_id: str) -> Path:
+    return Path("evidence") / "g2" / "reference" / f"{frame_id}-reference.png"
+
+
+def _reference_screenshot_candidates(mode: dict[str, Any], frame_id: str) -> list[Path]:
+    root = Path(str(mode.get("project_root") or ""))
+    run_dir = Path(str(mode["run_dir"]))
+    names = [f"{frame_id}-reference.png", f"{frame_id}.png"]
+    roots = [
+        run_dir / "evidence" / "g2" / "reference",
+        run_dir / "evidence" / "g3" / "reference",
+        root / "pencil" / "reference",
+        root / "pencil" / "exports",
+        root / "pencil" / "screenshots",
+    ]
+    return [directory / name for directory in roots for name in names]
+
+
+def _ensure_pencil_reference_screenshots(mode: dict[str, Any], acceptance: dict[str, Any]) -> None:
+    run_dir = Path(str(mode["run_dir"]))
+    for check in acceptance.get("checks", []):
+        if not isinstance(check, dict):
+            continue
+        frame_id = str(check.get("frame_id") or "")
+        if not frame_id:
+            continue
+        target_relative = _reference_screenshot_target(frame_id)
+        target = run_dir / target_relative
+        if not target.exists():
+            for candidate in _reference_screenshot_candidates(mode, frame_id):
+                if candidate.exists() and candidate.is_file() and candidate.resolve() != target.resolve():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(candidate.read_bytes())
+                    break
+        pencil_reference = check.setdefault("pencil_reference", {})
+        if isinstance(pencil_reference, dict):
+            pencil_reference["reference_screenshot"] = target_relative.as_posix()
+    _write_visual_acceptance(mode, acceptance)
+    errors = reference_screenshot_errors(mode)
+    if errors:
+        raise StateError("Pencil reference screenshot gate blocked: " + "; ".join(errors))
+
+
+def _items_by_frame(items: list[Any]) -> dict[str, dict[str, Any]]:
+    return {str(item.get("frame_id")): item for item in items if isinstance(item, dict) and item.get("frame_id")}
+
+
+def _pencil_contract_ref(frame_id: str) -> str:
+    return f"pencil-contract-map.json#contracts.{frame_id}"
+
+
+def _default_pencil_contract_map(mode: dict[str, Any]) -> dict[str, Any]:
+    ui_map = _load_json_artifact(mode, "ui-code-map.json")
+    layout = _load_json_artifact(mode, "ui-layout-spec.json")
+    tokens = _load_json_artifact(mode, "design-tokens.json")
+    state_map = _load_json_artifact(mode, "interaction-state-map.json")
+    visual = _load_json_artifact(mode, "visual-acceptance.json")
+    layouts = _items_by_frame(layout.get("top_level_frames", []))
+    states = _items_by_frame(state_map.get("pages", []))
+    visual_checks = _items_by_frame(visual.get("checks", []))
+    contracts: dict[str, dict[str, Any]] = {}
+    missing: list[str] = []
+    for mapping in ui_map.get("mappings", []):
+        if not isinstance(mapping, dict):
+            continue
+        frame_id = str(mapping.get("frame_id") or "")
+        if not frame_id:
+            continue
+        layout_ref = f"ui-layout-spec.json#top_level_frames.{frame_id}"
+        tokens_ref = "design-tokens.json#tokens"
+        states_ref = f"interaction-state-map.json#pages.{frame_id}"
+        visual_ref = f"visual-acceptance.json#checks.{frame_id}"
+        visual_check = visual_checks.get(frame_id, {})
+        pencil_reference = visual_check.get("pencil_reference") if isinstance(visual_check.get("pencil_reference"), dict) else {}
+        reference_screenshot = pencil_reference.get("reference_screenshot") or f"evidence/g2/reference/{frame_id}-reference.png"
+        implementation_screenshot = visual_check.get("implementation_screenshot") or f"evidence/g6/{frame_id}-implementation.png"
+        if frame_id not in layouts or frame_id not in states or frame_id not in visual_checks:
+            missing.append(frame_id)
+        contracts[frame_id] = {
+            "frame_id": frame_id,
+            "contract_ref": _pencil_contract_ref(frame_id),
+            "pencil": {
+                "source_file": mapping.get("source_file"),
+                "frame_id": frame_id,
+                "frame_name": mapping.get("frame_name"),
+                "reference_screenshot": reference_screenshot,
+                "layout_ref": layout_ref,
+                "design_tokens_ref": tokens_ref,
+                "interaction_states_ref": states_ref,
+                "visual_acceptance_ref": visual_ref,
+            },
+            "implementation": {
+                "route": mapping.get("route"),
+                "page": mapping.get("page"),
+                "components": mapping.get("components", []),
+                "api_targets": mapping.get("api_targets", []),
+                "data_targets": mapping.get("data_targets", []),
+                "code_targets": mapping.get("code_targets", []),
+                "actions": mapping.get("actions", []),
+                "data_fields": mapping.get("data_fields", []),
+            },
+            "hard_constraints": {
+                "required_before_implementation": [layout_ref, tokens_ref, states_ref, visual_ref],
+                "required_work_item_fields": ["contract_ref", "frame_ids", "spec_refs", "code_targets", "acceptance_checks"],
+                "required_evidence": [
+                    reference_screenshot,
+                    implementation_screenshot,
+                    "evidence/g5/visual-review-report.json",
+                    "evidence/g6/visual-acceptance-report.json",
+                ],
+                "visual_comparison": visual_check.get("comparison", {}),
+            },
+            "acceptance_checks": [
+                f"G4 must load `{_pencil_contract_ref(frame_id)}` before implementation",
+                f"G4 must read reference screenshot `{reference_screenshot}` before editing mapped files",
+                f"Rendered UI must match Pencil frame `{frame_id}`",
+                "Implementation screenshot and visual acceptance report are required before verification PASS",
+            ],
+            "source_refs": mapping.get("source_refs", []),
+            "features": mapping.get("features", []),
+        }
+    return {
+        "schema": "superteam_codex.pencil_contract_map.v1",
+        "project_root": mode.get("project_root"),
+        "status": "ok" if contracts and not missing else "needs_mapping",
+        "generated_from": {
+            "ui_code_map": "ui-code-map.json",
+            "ui_layout_spec": "ui-layout-spec.json",
+            "design_tokens": "design-tokens.json",
+            "interaction_state_map": "interaction-state-map.json",
+            "visual_acceptance": "visual-acceptance.json",
+        },
+        "contracts": contracts,
+        "missing_contract_inputs": missing,
+    }
+
+
+def _write_pencil_contract_map(mode: dict[str, Any], mapping: dict[str, Any]) -> None:
+    write_json(_path_in_run(mode, "pencil-contract-map.json"), mapping)
+    lines = ["# Pencil Contract Map", "", f"Status: {mapping.get('status')}", ""]
+    for frame_id, contract in (mapping.get("contracts") or {}).items():
+        implementation = contract.get("implementation") or {}
+        lines.extend(
+            [
+                f"## {frame_id}",
+                "",
+                f"- contract_ref: `{contract.get('contract_ref')}`",
+                f"- route: `{implementation.get('route')}`",
+                f"- code_targets: {', '.join(f'`{target}`' for target in implementation.get('code_targets', []))}",
+                "",
+            ]
+        )
+    write_text(_path_in_run(mode, "pencil-contract-map.md"), "\n".join(lines).rstrip() + "\n")
 
 
 def _js_stack_required(mode: dict[str, Any]) -> bool:
@@ -1010,6 +1163,8 @@ def _default_work_items(mode: dict[str, Any]) -> list[dict[str, Any]]:
 def _default_work_items(mode: dict[str, Any]) -> list[dict[str, Any]]:
     contract = _contract(mode)
     ui_map = contract.get("ui_code_map") or _load_json_artifact(mode, "ui-code-map.json")
+    pencil_contract_map = contract.get("pencil_contract_map") or _load_json_artifact(mode, "pencil-contract-map.json")
+    pencil_contracts = pencil_contract_map.get("contracts", {}) if isinstance(pencil_contract_map, dict) else {}
     surface = contract.get("implementation_surface") or _default_implementation_surface(mode)
     commands = _default_verification_commands(mode) if _js_stack_required(mode) else surface.get("verification_commands") or ["npm run build"]
     mappings = [item for item in ui_map.get("mappings", []) if isinstance(item, dict)]
@@ -1067,9 +1222,19 @@ def _default_work_items(mode: dict[str, Any]) -> list[dict[str, Any]]:
         actions = [str(action) for action in mapping.get("actions", []) if str(action).strip()]
         page_slug = _page_slug(frame_id, frame_name)
         component_targets = _ui_component_targets(page_slug, actions)
+        pencil_contract = pencil_contracts.get(frame_id, {}) if isinstance(pencil_contracts, dict) else {}
+        contract_implementation = pencil_contract.get("implementation", {}) if isinstance(pencil_contract, dict) else {}
+        contract_pencil = pencil_contract.get("pencil", {}) if isinstance(pencil_contract, dict) else {}
+        contract_constraints = pencil_contract.get("hard_constraints", {}) if isinstance(pencil_contract, dict) else {}
+        contract_targets = contract_implementation.get("code_targets", []) if isinstance(contract_implementation, dict) else []
+        contract_ref = _pencil_contract_ref(frame_id)
+        reference_screenshot = contract_pencil.get("reference_screenshot") if isinstance(contract_pencil, dict) else f"evidence/g2/reference/{frame_id}-reference.png"
+        required_evidence = contract_constraints.get("required_evidence", []) if isinstance(contract_constraints, dict) else []
+        implementation_screenshot = next((str(value) for value in required_evidence if str(value).endswith("-implementation.png")), f"evidence/g6/{frame_id}-implementation.png")
         code_targets = list(
             dict.fromkeys(
                 ["src/App.tsx"]
+                + (contract_targets or [])
                 + (mapping.get("code_targets") or [])
                 + [mapping.get("page")]
                 + (mapping.get("components") or [])
@@ -1089,17 +1254,29 @@ def _default_work_items(mode: dict[str, Any]) -> list[dict[str, Any]]:
                 "code_targets": [target for target in code_targets if target],
                 "actions": actions,
                 "data_fields": mapping.get("data_fields", []),
+                "contract_ref": contract_ref,
+                "evidence_refs": {
+                    "reference_screenshot": reference_screenshot,
+                    "implementation_screenshot": implementation_screenshot,
+                    "g5_visual_report": "evidence/g5/visual-review-report.json",
+                    "g6_visual_report": "evidence/g6/visual-acceptance-report.json",
+                },
                 "spec_refs": {
+                    "pencil_contract": contract_ref,
                     "layout": f"ui-layout-spec.json#frames.{frame_id}",
                     "tokens": "design-tokens.json",
                     "states": f"interaction-state-map.json#pages.{frame_id}",
                     "visual_acceptance": f"visual-acceptance.json#checks.{frame_id}",
                 },
                 "acceptance_checks": [
+                    f"G4 loads `{contract_ref}` before editing mapped files",
+                    f"G4 reads Pencil reference screenshot `{reference_screenshot}` before UI implementation",
                     f"UI matches Pencil frame `{frame_id}` using ui-layout-spec.json",
                     "Styles use design-tokens.json or the Pencil export fallback rule",
                     "All required interaction states are implemented",
+                    f"Implementation screenshot `{implementation_screenshot}` is produced before G4 readiness",
                     "Final screenshots satisfy visual-acceptance.json",
+                    "G5 visual-review-report.json and G6 visual-acceptance-report.json both pass",
                     "All mapped actions are implemented or intentionally deferred in the plan",
                 ],
                 "verification_commands": commands,
@@ -1214,12 +1391,13 @@ def _write_plan_artifact(mode: dict[str, Any]) -> Path:
     design_tokens = contract.get("design_tokens") or _load_json_artifact(mode, "design-tokens.json")
     interaction_states = contract.get("interaction_state_map") or _load_json_artifact(mode, "interaction-state-map.json")
     visual_acceptance = contract.get("visual_acceptance") or _load_json_artifact(mode, "visual-acceptance.json")
+    pencil_contract_map = contract.get("pencil_contract_map") or _load_json_artifact(mode, "pencil-contract-map.json")
     lines = [
         "# G3 Execution Plan",
         "",
         f"Status: {contract.get('status', 'pending')}",
         "",
-        "Generated from `mode.json.event_tree`, `ui-code-map.json`, `ui-layout-spec.json`, `design-tokens.json`, `interaction-state-map.json`, `visual-acceptance.json`, and `implementation-plan.json`.",
+        "Generated from `mode.json.event_tree`, `ui-code-map.json`, `ui-layout-spec.json`, `design-tokens.json`, `interaction-state-map.json`, `visual-acceptance.json`, `pencil-contract-map.json`, and `implementation-plan.json`.",
         "",
         "## UI Code Map",
         "",
@@ -1232,6 +1410,12 @@ def _write_plan_artifact(mode: dict[str, Any]) -> Path:
         f"- design-tokens.json: {design_tokens.get('status', '')}",
         f"- interaction-state-map.json: {interaction_states.get('status', '')}",
         f"- visual-acceptance.json: {visual_acceptance.get('status', '')}",
+        f"- pencil-contract-map.json: {pencil_contract_map.get('status', '')}",
+        "",
+        "## Pencil Contract Map",
+        "",
+        f"- status: {pencil_contract_map.get('status', '')}",
+        f"- contracts: {len((pencil_contract_map.get('contracts') or {}))}",
         "",
         "## Work Items",
         "",
@@ -1243,9 +1427,11 @@ def _write_plan_artifact(mode: dict[str, Any]) -> Path:
                 "",
                 f"- kind: {item.get('kind')}",
                 f"- frame_ids: {', '.join(f'`{frame}`' for frame in item.get('frame_ids', []))}",
+                f"- contract_ref: `{item.get('contract_ref', '')}`",
                 f"- code_targets: {', '.join(f'`{target}`' for target in item.get('code_targets', []))}",
                 f"- actions: {', '.join(str(action) for action in item.get('actions', []))}",
                 f"- spec_refs: {json.dumps(item.get('spec_refs') or {}, ensure_ascii=False)}",
+                f"- evidence_refs: {json.dumps(item.get('evidence_refs') or {}, ensure_ascii=False)}",
                 "- acceptance_checks:",
             ]
         )
@@ -1274,14 +1460,6 @@ def _record_g3_agent_owned_result(mode: dict[str, Any], event_id: str, note: str
         surface = payload if isinstance(payload, dict) else _default_implementation_surface(mode, note)
         surface.setdefault("status", "ok")
         contract["implementation_surface"] = surface
-        return
-    if event_id == "G3.MAP_PENCIL_TO_CODE_TARGETS":
-        payload = _extract_json_payload(note, "UI_CODE_MAP_JSON:")
-        mapping = payload if isinstance(payload, dict) else _default_ui_code_map(mode, note)
-        mapping.setdefault("status", "ok" if mapping.get("mappings") else "needs_mapping")
-        contract["ui_code_map"] = mapping
-        contract["deliverables"]["ui_code_map"] = str(_path_in_run(mode, "ui-code-map.json").resolve())
-        _write_ui_code_map(mode, mapping)
         return
     if event_id == "G3.DRAFT_EXECUTION_PLAN":
         if _note_indicates_failure(note):
@@ -1351,6 +1529,52 @@ def _assert_ui_implementation_contract_ready(mode: dict[str, Any]) -> None:
         raise StateError("ui-layout-spec.json does not cover every mapped UI frame")
     if not mapped.issubset(visual_frames):
         raise StateError("visual-acceptance.json does not cover every mapped UI frame")
+    screenshot_errors = reference_screenshot_errors(mode)
+    if screenshot_errors:
+        raise StateError("visual-acceptance.json reference screenshots are incomplete: " + "; ".join(screenshot_errors))
+
+
+def _assert_pencil_contract_map_ready(mode: dict[str, Any]) -> None:
+    if not _ui_required(mode):
+        return
+    contract_map = _load_json_artifact(mode, "pencil-contract-map.json")
+    if contract_map.get("status") != "ok":
+        raise StateError(f"pencil-contract-map.json status must be ok for UI projects, got {contract_map.get('status')!r}")
+    contracts = contract_map.get("contracts")
+    if not isinstance(contracts, dict) or not contracts:
+        raise StateError("pencil-contract-map.json must include contracts")
+    ui_map = _load_json_artifact(mode, "ui-code-map.json")
+    mapped_frames = [str(item.get("frame_id")) for item in ui_map.get("mappings", []) if isinstance(item, dict) and item.get("frame_id")]
+    contract_frames = [str(frame_id) for frame_id in contracts.keys()]
+    if len(contract_frames) != len(set(contract_frames)):
+        raise StateError("pencil-contract-map.json contains duplicate frame contracts")
+    if set(mapped_frames) != set(contract_frames):
+        raise StateError("pencil-contract-map.json must cover exactly every ui-code-map frame")
+    for frame_id in mapped_frames:
+        item = contracts.get(frame_id)
+        if not isinstance(item, dict):
+            raise StateError(f"pencil-contract-map.json contract for {frame_id} is invalid")
+        if item.get("contract_ref") != _pencil_contract_ref(frame_id):
+            raise StateError(f"pencil contract {frame_id} has invalid contract_ref")
+        pencil = item.get("pencil") if isinstance(item.get("pencil"), dict) else {}
+        implementation = item.get("implementation") if isinstance(item.get("implementation"), dict) else {}
+        hard_constraints = item.get("hard_constraints") if isinstance(item.get("hard_constraints"), dict) else {}
+        if pencil.get("frame_id") != frame_id or not pencil.get("source_file"):
+            raise StateError(f"pencil contract {frame_id} must bind a Pencil source frame")
+        if not pencil.get("reference_screenshot"):
+            raise StateError(f"pencil contract {frame_id} must bind a reference screenshot")
+        if not implementation.get("code_targets"):
+            raise StateError(f"pencil contract {frame_id} must bind code_targets")
+        required_refs = hard_constraints.get("required_before_implementation")
+        required_evidence = hard_constraints.get("required_evidence")
+        if not isinstance(required_refs, list) or len(required_refs) < 4:
+            raise StateError(f"pencil contract {frame_id} must include required_before_implementation refs")
+        if not isinstance(required_evidence, list) or not required_evidence:
+            raise StateError(f"pencil contract {frame_id} must include required evidence")
+        evidence_text = " ".join(str(value) for value in required_evidence)
+        for required in ["evidence/g2/reference", "implementation.png", "evidence/g5/visual-review-report.json", "evidence/g6/visual-acceptance-report.json"]:
+            if required not in evidence_text:
+                raise StateError(f"pencil contract {frame_id} is missing required evidence entry {required}")
 
 
 def _assert_execution_plan_ready(mode: dict[str, Any]) -> None:
@@ -1364,6 +1588,11 @@ def _assert_execution_plan_ready(mode: dict[str, Any]) -> None:
     items = contract.get("work_items") or ((plan if isinstance(plan, dict) else {}).get("work_items") or [])
     if not items:
         raise StateError("implementation plan must contain work_items")
+    pencil_contracts: dict[str, Any] = {}
+    if _ui_required(mode):
+        _assert_pencil_contract_map_ready(mode)
+        contract_map = _load_json_artifact(mode, "pencil-contract-map.json")
+        pencil_contracts = contract_map.get("contracts", {}) if isinstance(contract_map.get("contracts"), dict) else {}
     commands = list(dict.fromkeys(command for item in items for command in item.get("verification_commands", []) if isinstance(command, str)))
     if _js_stack_required(mode):
         required_commands = ["npm run typecheck", "npm run build", "npx prisma validate"]
@@ -1387,6 +1616,7 @@ def _assert_execution_plan_ready(mode: dict[str, Any]) -> None:
             for target in ["prisma/schema.prisma", "server/src/index.ts", "server/src/prisma.ts", "server/src/routes/auth.ts", "server/src/routes/employees.ts"]:
                 if target not in data_targets:
                     raise StateError(f"data/API work item must include `{target}`")
+    ui_item_frames: list[str] = []
     for item in items:
         if not item.get("code_targets"):
             raise StateError(f"work item {item.get('id')} has no code_targets")
@@ -1396,10 +1626,36 @@ def _assert_execution_plan_ready(mode: dict[str, Any]) -> None:
             raise StateError(f"UI work item {item.get('id')} has no UI implementation spec_refs")
         if item.get("kind") == "ui":
             targets = set(item.get("code_targets") or [])
-            frame_ids = {str(frame_id) for frame_id in item.get("frame_ids", [])}
-            if "s1_login" in frame_ids and "src/api/auth.ts" not in targets:
+            frame_ids = [str(frame_id) for frame_id in item.get("frame_ids", [])]
+            if len(frame_ids) != 1 or frame_ids[0] == "NO_UI":
+                raise StateError(f"UI work item {item.get('id')} must bind exactly one Pencil frame")
+            frame_id = frame_ids[0]
+            ui_item_frames.append(frame_id)
+            expected_ref = _pencil_contract_ref(frame_id)
+            spec_refs = item.get("spec_refs") if isinstance(item.get("spec_refs"), dict) else {}
+            if item.get("contract_ref") != expected_ref or spec_refs.get("pencil_contract") != expected_ref:
+                raise StateError(f"UI work item {item.get('id')} must reference {expected_ref}")
+            evidence_refs = item.get("evidence_refs") if isinstance(item.get("evidence_refs"), dict) else {}
+            for key in ["reference_screenshot", "implementation_screenshot", "g5_visual_report", "g6_visual_report"]:
+                if not evidence_refs.get(key):
+                    raise StateError(f"UI work item {item.get('id')} must include evidence_refs.{key}")
+            pencil_contract = pencil_contracts.get(frame_id)
+            if not isinstance(pencil_contract, dict):
+                raise StateError(f"UI work item {item.get('id')} has no Pencil contract for frame {frame_id}")
+            required_targets = set(((pencil_contract.get("implementation") or {}).get("code_targets")) or [])
+            if not required_targets.issubset(targets):
+                missing_targets = ", ".join(sorted(required_targets - targets))
+                raise StateError(f"UI work item {item.get('id')} is missing Pencil contract code targets: {missing_targets}")
+            checks_text = " ".join(str(check) for check in item.get("acceptance_checks", []))
+            if "pencil-contract-map.json" not in checks_text:
+                raise StateError(f"UI work item {item.get('id')} must include pencil-contract-map.json acceptance check")
+            for required in ["reference screenshot", "Implementation screenshot", "visual-review-report.json", "visual-acceptance-report.json"]:
+                if required not in checks_text:
+                    raise StateError(f"UI work item {item.get('id')} acceptance checks must require {required}")
+            frame_id_set = set(frame_ids)
+            if "s1_login" in frame_id_set and "src/api/auth.ts" not in targets:
                 raise StateError("S1 login work item must include src/api/auth.ts")
-            if "s2_roster" in frame_ids:
+            if "s2_roster" in frame_id_set:
                 for target in [
                     "src/components/roster/RosterFilters.tsx",
                     "src/components/roster/RosterStats.tsx",
@@ -1411,6 +1667,12 @@ def _assert_execution_plan_ready(mode: dict[str, Any]) -> None:
                         raise StateError(f"S2 roster work item must include `{target}`")
         if not item.get("acceptance_checks") or not item.get("verification_commands"):
             raise StateError(f"work item {item.get('id')} must include acceptance checks and verification commands")
+    if _ui_required(mode):
+        contract_frames = set(pencil_contracts.keys())
+        if len(ui_item_frames) != len(set(ui_item_frames)):
+            raise StateError("G3 execution plan must bind each Pencil frame to exactly one UI work item")
+        if set(ui_item_frames) != contract_frames:
+            raise StateError("G3 execution plan UI work items must match pencil-contract-map frames exactly")
 
 
 def advance_g3(ws: Workspace, note: str = "", *, trace: bool = True) -> dict[str, Any]:
@@ -1473,6 +1735,14 @@ def advance_g3(ws: Workspace, note: str = "", *, trace: bool = True) -> dict[str
                 _block_current(mode, current, f"feature-ui-map status must be ok, got {feature_map.get('status')!r}")
                 save_mode(ws, mode)
                 raise StateError(current["blocked_reason"])
+            try:
+                _assert_ui_code_map_ready(mode)
+                _assert_ui_implementation_contract_ready(mode)
+                _assert_pencil_contract_map_ready(mode)
+            except StateError as exc:
+                _block_current(mode, current, f"G2 design contract is incomplete: {exc}")
+                save_mode(ws, mode)
+                raise StateError(current["blocked_reason"]) from exc
             contract["ui"] = {
                 "required": True,
                 "authority": "pencil",
@@ -1481,86 +1751,32 @@ def advance_g3(ws: Workspace, note: str = "", *, trace: bool = True) -> dict[str
                 "feature_ui_map_status": feature_map.get("status"),
                 "frame_ids": [item.get("id") for item in inventory.get("frames", []) if isinstance(item, dict)],
             }
+            contract["ui_code_map"] = _load_json_artifact(mode, "ui-code-map.json")
+            contract["layout_spec"] = _load_json_artifact(mode, "ui-layout-spec.json")
+            contract["design_tokens"] = _load_json_artifact(mode, "design-tokens.json")
+            contract["interaction_state_map"] = _load_json_artifact(mode, "interaction-state-map.json")
+            contract["visual_acceptance"] = _load_json_artifact(mode, "visual-acceptance.json")
+            contract["pencil_contract_map"] = _load_json_artifact(mode, "pencil-contract-map.json")
+            contract["deliverables"].update(
+                {
+                    "ui_code_map": str(_path_in_run(mode, "ui-code-map.json").resolve()),
+                    "layout_spec": str(_path_in_run(mode, "ui-layout-spec.json").resolve()),
+                    "design_tokens": str(_path_in_run(mode, "design-tokens.json").resolve()),
+                    "interaction_state_map": str(_path_in_run(mode, "interaction-state-map.json").resolve()),
+                    "visual_acceptance": str(_path_in_run(mode, "visual-acceptance.json").resolve()),
+                    "pencil_contract_map": str(_path_in_run(mode, "pencil-contract-map.json").resolve()),
+                }
+            )
             next_event = _complete_current(mode, event_id)
 
     elif event_id == "G3.SCAN_IMPLEMENTATION_SURFACE":
         raise StateError("G3.SCAN_IMPLEMENTATION_SURFACE requires architect spawn/result through g3-trace")
 
-    elif event_id == "G3.MAP_PENCIL_TO_CODE_TARGETS":
-        raise StateError("G3.MAP_PENCIL_TO_CODE_TARGETS requires designer spawn/result through g3-trace")
-
     elif event_id == "G3.CHECK_UI_CODE_MAP":
         try:
             _assert_ui_code_map_ready(mode)
-        except StateError as exc:
-            _block_current(mode, current, str(exc))
-            save_mode(ws, mode)
-            raise
-        next_event = _complete_current(mode, event_id)
-
-    elif event_id == "G3.EXTRACT_LAYOUT_SPEC":
-        if not _ui_required(mode):
-            current["status"] = "not_applicable"
-            next_event = event_by_id(mode, "G3.EXTRACT_DESIGN_TOKENS")
-            next_event["status"] = "active"
-        else:
-            spec = _default_layout_spec(mode)
-            if spec.get("status") != "ok":
-                _block_current(mode, current, f"ui-layout-spec status must be ok, got {spec.get('status')!r}")
-                save_mode(ws, mode)
-                raise StateError(current["blocked_reason"])
-            contract["layout_spec"] = spec
-            contract["deliverables"]["layout_spec"] = str(_path_in_run(mode, "ui-layout-spec.json").resolve())
-            _write_layout_spec(mode, spec)
-            next_event = _complete_current(mode, event_id)
-
-    elif event_id == "G3.EXTRACT_DESIGN_TOKENS":
-        if not _ui_required(mode):
-            current["status"] = "not_applicable"
-            next_event = event_by_id(mode, "G3.MAP_INTERACTION_STATES")
-            next_event["status"] = "active"
-        else:
-            tokens = _default_design_tokens(mode)
-            contract["design_tokens"] = tokens
-            contract["deliverables"]["design_tokens"] = str(_path_in_run(mode, "design-tokens.json").resolve())
-            _write_design_tokens(mode, tokens)
-            next_event = _complete_current(mode, event_id)
-
-    elif event_id == "G3.MAP_INTERACTION_STATES":
-        if not _ui_required(mode):
-            current["status"] = "not_applicable"
-            next_event = event_by_id(mode, "G3.WRITE_VISUAL_ACCEPTANCE")
-            next_event["status"] = "active"
-        else:
-            state_map = _default_interaction_state_map(mode)
-            if state_map.get("status") != "ok":
-                _block_current(mode, current, f"interaction-state-map status must be ok, got {state_map.get('status')!r}")
-                save_mode(ws, mode)
-                raise StateError(current["blocked_reason"])
-            contract["interaction_state_map"] = state_map
-            contract["deliverables"]["interaction_state_map"] = str(_path_in_run(mode, "interaction-state-map.json").resolve())
-            _write_interaction_state_map(mode, state_map)
-            next_event = _complete_current(mode, event_id)
-
-    elif event_id == "G3.WRITE_VISUAL_ACCEPTANCE":
-        if not _ui_required(mode):
-            current["status"] = "not_applicable"
-            next_event = event_by_id(mode, "G3.CHECK_UI_IMPLEMENTATION_CONTRACT")
-            next_event["status"] = "active"
-        else:
-            acceptance = _default_visual_acceptance(mode)
-            if acceptance.get("status") != "ok":
-                _block_current(mode, current, f"visual-acceptance status must be ok, got {acceptance.get('status')!r}")
-                save_mode(ws, mode)
-                raise StateError(current["blocked_reason"])
-            contract["visual_acceptance"] = acceptance
-            contract["deliverables"]["visual_acceptance"] = str(_path_in_run(mode, "visual-acceptance.json").resolve())
-            _write_visual_acceptance(mode, acceptance)
-            next_event = _complete_current(mode, event_id)
-
-    elif event_id == "G3.CHECK_UI_IMPLEMENTATION_CONTRACT":
-        try:
             _assert_ui_implementation_contract_ready(mode)
+            _assert_pencil_contract_map_ready(mode)
         except StateError as exc:
             _block_current(mode, current, str(exc))
             save_mode(ws, mode)
@@ -1752,8 +1968,14 @@ def apply_g3_hook_trace_signal(
         if agent_name != expected_agent:
             raise StateError(f"{event_id} requires agent {expected_agent}, got {agent_name}")
         _ensure_g3_spawn_required(mode, event_id)
-        call_id = agent_id.strip() or f"{agent_name}-local"
-        _record_agent_call(mode, event_id, agent_name, call_id, "spawned", policy["scope"])
+        call_id = _record_agent_call(
+            mode,
+            event_id,
+            agent_name,
+            agent_id.strip() or f"{agent_name}-local",
+            "spawned",
+            policy["scope"],
+        )
         _trace_g3_hook(
             mode,
             f"{event_id}.spawn_record",

@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .agent_registry import agent_spawn_contract, require_superteam_agent, validate_spawn_policies
+from .agent_registry import agent_reuse_hook_instruction, agent_spawn_contract, register_agent_call, require_superteam_agent, validate_spawn_policies
 from .event_tree import (
     G2_EVENT_IDS,
     active_event,
@@ -17,6 +17,7 @@ from .event_tree import (
     set_event_status,
     transition_to_phase,
 )
+from . import g3 as g3_design
 from .state import StateError, is_g1_complete, is_g2_complete, load_mode, save_mode, validate_mode
 from .workspace import Workspace, file_sha256, read_json, utc_now, write_text
 
@@ -30,6 +31,14 @@ PENCIL_SKIP_EVENTS = [
     "G2.EXTRACT_PENCIL_FRAMES",
     "G2.MAP_FEATURE_TO_PENCIL_FRAME",
     "G2.CHECK_FEATURE_UI_MAP",
+    "G2.MAP_PENCIL_TO_CODE_TARGETS",
+    "G2.EXTRACT_LAYOUT_SPEC",
+    "G2.EXTRACT_DESIGN_TOKENS",
+    "G2.MAP_INTERACTION_STATES",
+    "G2.WRITE_VISUAL_ACCEPTANCE",
+    "G2.CHECK_UI_IMPLEMENTATION_CONTRACT",
+    "G2.WRITE_PENCIL_CONTRACT_MAP",
+    "G2.CHECK_PENCIL_CONTRACT_MAP",
     "G2.DELIVER_PENCIL_DESIGN",
 ]
 
@@ -45,6 +54,14 @@ PENCIL_VALIDATION_EVENTS = [
     "G2.EXTRACT_PENCIL_FRAMES",
     "G2.MAP_FEATURE_TO_PENCIL_FRAME",
     "G2.CHECK_FEATURE_UI_MAP",
+    "G2.MAP_PENCIL_TO_CODE_TARGETS",
+    "G2.EXTRACT_LAYOUT_SPEC",
+    "G2.EXTRACT_DESIGN_TOKENS",
+    "G2.MAP_INTERACTION_STATES",
+    "G2.WRITE_VISUAL_ACCEPTANCE",
+    "G2.CHECK_UI_IMPLEMENTATION_CONTRACT",
+    "G2.WRITE_PENCIL_CONTRACT_MAP",
+    "G2.CHECK_PENCIL_CONTRACT_MAP",
     "G2.DELIVER_PENCIL_DESIGN",
 ]
 
@@ -258,10 +275,12 @@ def _contract(mode: dict[str, Any]) -> dict[str, Any]:
     contract.setdefault("status", "pending")
     contract.setdefault("ui_authority", "pencil")
     contract.setdefault("project_definition", None)
+    contract.setdefault("project_definition_contract", None)
     contract.setdefault("source_review", None)
     contract.setdefault("ui", None)
     contract.setdefault("ui_plan", [])
     contract.setdefault("pencil_design", {"steps": [], "deliverables": []})
+    contract.setdefault("deliverables", {})
     contract.setdefault("design_decisions", [])
     return contract
 
@@ -351,7 +370,7 @@ def _set_orchestrator(
     state["spawn_status"] = spawn_status
     state["expected_agent"] = expected_agent
     state["expected_agent_definition"] = agent_spawn_contract(expected_agent) if expected_agent else None
-    state["hook_instruction"] = instruction
+    state["hook_instruction"] = agent_reuse_hook_instruction(expected_agent, instruction) if expected_agent else instruction
 
 
 def _set_inspector(
@@ -387,23 +406,9 @@ def _record_agent_call(
     agent_id: str,
     status: str,
     scope: str,
-) -> None:
-    state = _orchestrator_state(mode)
-    calls = state.setdefault("agent_calls", [])
-    if not isinstance(calls, list):
-        calls = []
-        state["agent_calls"] = calls
-    calls.append(
-        {
-            "ts": utc_now(),
-            "event": event_id,
-            "role": agent,
-            "agent_id": agent_id,
-            "scope": scope,
-            "status": status,
-            **agent_spawn_contract(agent),
-        }
-    )
+) -> str:
+    call = register_agent_call(mode, event_id, agent, agent_id, status, scope)
+    return str(call.get("agent_id") or "")
 
 
 def _mark_agent_call_completed(mode: dict[str, Any], event_id: str, agent: str, note: str) -> str:
@@ -451,8 +456,14 @@ def _require_g2_inspector(mode: dict[str, Any], event_id: str, instruction: str)
 
 
 def _record_g2_inspector_spawn(mode: dict[str, Any], event_id: str, agent_id: str) -> None:
-    call_id = agent_id.strip() or f"{INSPECTOR_AGENT}-local"
-    _record_agent_call(mode, event_id, INSPECTOR_AGENT, call_id, "spawned", f"inspect {event_id} trace before advance")
+    call_id = _record_agent_call(
+        mode,
+        event_id,
+        INSPECTOR_AGENT,
+        agent_id.strip() or f"{INSPECTOR_AGENT}-local",
+        "spawned",
+        f"inspect {event_id} trace before advance",
+    )
     _trace_g2_hook(
         mode,
         f"{event_id}.inspector_spawn_record",
@@ -933,9 +944,10 @@ def _write_design(mode: dict[str, Any]) -> Path:
             "",
             "## Chosen Approach",
             "",
-            "- G3 tasks must cite source files and Pencil frame ids, or `NO_UI` for non-UI work.",
-            "- G4 executor must read the cited Pencil frame before UI code changes.",
-            "- G5/G6 must review and verify UI against the cited Pencil frame, not against this derived text alone.",
+            "- G2 owns Pencil screenshots, visual acceptance, and `pencil-contract-map.json` as design authorities.",
+            "- G3 tasks must cite source files, Pencil frame ids, and G2 design contract refs, or `NO_UI` for non-UI work.",
+            "- G4 executor must read the cited Pencil contract and reference screenshot before UI code changes.",
+            "- G5/G6 must keep their normal review/verification gates and add UI fidelity review against G2 reference screenshots.",
             "",
             "## Approval",
             "",
@@ -1054,8 +1066,14 @@ def apply_g2_hook_trace_signal(
             if agent_name != expected_agent:
                 raise StateError(f"{event_id} requires agent {expected_agent}, got {agent_name}")
             _ensure_g2_pencil_designer_required(mode)
-            call_id = agent_id.strip() or f"{agent_name}-local"
-            _record_agent_call(mode, event_id, agent_name, call_id, "spawned", "own UI intent while the user steers Pencil design")
+            call_id = _record_agent_call(
+                mode,
+                event_id,
+                agent_name,
+                agent_id.strip() or f"{agent_name}-local",
+                "spawned",
+                "own UI intent while the user steers Pencil design",
+            )
             _trace_g2_hook(
                 mode,
                 f"{event_id}.spawn_record",
@@ -1091,8 +1109,14 @@ def apply_g2_hook_trace_signal(
         if agent_name != expected_agent:
             raise StateError(f"{event_id} requires agent {expected_agent}, got {agent_name}")
         _ensure_g2_spawn_required(mode, event_id)
-        call_id = agent_id.strip() or f"{agent_name}-local"
-        _record_agent_call(mode, event_id, agent_name, call_id, "spawned", policy["scope"])
+        call_id = _record_agent_call(
+            mode,
+            event_id,
+            agent_name,
+            agent_id.strip() or f"{agent_name}-local",
+            "spawned",
+            policy["scope"],
+        )
         _trace_g2_hook(
             mode,
             f"{event_id}.spawn_record",
@@ -1388,14 +1412,25 @@ def advance_g2(ws: Workspace, note: str = "", *, trace: bool = True) -> dict[str
         next_event = _complete_current(mode, event_id)
 
     elif event_id == "G2.READ_G1_DEFINITION":
-        path = _path_in_run(mode, "01-project-definition.md")
-        if not path.exists():
+        contract_path = _path_in_run(mode, "project-definition.json")
+        markdown_path = _path_in_run(mode, "01-project-definition.md")
+        if not contract_path.exists():
+            _block_current(mode, current, "project-definition.json is missing")
+            save_mode(ws, mode)
+            raise StateError("project-definition.json is missing")
+        if not markdown_path.exists():
             _block_current(mode, current, "01-project-definition.md is missing")
             save_mode(ws, mode)
             raise StateError("01-project-definition.md is missing")
+        contract["project_definition_contract"] = {
+            "path": str(contract_path.resolve()),
+            "sha256": file_sha256(contract_path),
+            "schema": read_json(contract_path, {}).get("schema"),
+            "read_at": utc_now(),
+        }
         contract["project_definition"] = {
-            "path": str(path.resolve()),
-            "sha256": file_sha256(path),
+            "path": str(markdown_path.resolve()),
+            "sha256": file_sha256(markdown_path),
             "read_at": utc_now(),
         }
         next_event = _complete_current(mode, event_id)
@@ -1545,6 +1580,121 @@ def advance_g2(ws: Workspace, note: str = "", *, trace: bool = True) -> dict[str
             raise StateError(f"feature-ui-map status must be ok for UI projects, got {mapping.get('status')!r}")
         next_event = _complete_current(mode, event_id)
 
+    elif event_id == "G2.MAP_PENCIL_TO_CODE_TARGETS":
+        if not (contract.get("ui") or {}).get("required"):
+            current["status"] = "not_applicable"
+            next_event = event_by_id(mode, "G2.EXTRACT_LAYOUT_SPEC")
+            next_event["status"] = "active"
+        else:
+            mapping = g3_design._default_ui_code_map(mode, note)
+            if mapping.get("status") != "ok":
+                _block_current(mode, current, f"ui-code-map status must be ok, got {mapping.get('status')!r}")
+                save_mode(ws, mode)
+                raise StateError(current["blocked_reason"])
+            contract["ui_code_map"] = mapping
+            contract["deliverables"]["ui_code_map"] = str(_path_in_run(mode, "ui-code-map.json").resolve())
+            g3_design._write_ui_code_map(mode, mapping)
+            next_event = _complete_current(mode, event_id)
+
+    elif event_id == "G2.EXTRACT_LAYOUT_SPEC":
+        if not (contract.get("ui") or {}).get("required"):
+            current["status"] = "not_applicable"
+            next_event = event_by_id(mode, "G2.EXTRACT_DESIGN_TOKENS")
+            next_event["status"] = "active"
+        else:
+            spec = g3_design._default_layout_spec(mode)
+            if spec.get("status") != "ok":
+                _block_current(mode, current, f"ui-layout-spec status must be ok, got {spec.get('status')!r}")
+                save_mode(ws, mode)
+                raise StateError(current["blocked_reason"])
+            contract["layout_spec"] = spec
+            contract["deliverables"]["layout_spec"] = str(_path_in_run(mode, "ui-layout-spec.json").resolve())
+            g3_design._write_layout_spec(mode, spec)
+            next_event = _complete_current(mode, event_id)
+
+    elif event_id == "G2.EXTRACT_DESIGN_TOKENS":
+        if not (contract.get("ui") or {}).get("required"):
+            current["status"] = "not_applicable"
+            next_event = event_by_id(mode, "G2.MAP_INTERACTION_STATES")
+            next_event["status"] = "active"
+        else:
+            tokens = g3_design._default_design_tokens(mode)
+            contract["design_tokens"] = tokens
+            contract["deliverables"]["design_tokens"] = str(_path_in_run(mode, "design-tokens.json").resolve())
+            g3_design._write_design_tokens(mode, tokens)
+            next_event = _complete_current(mode, event_id)
+
+    elif event_id == "G2.MAP_INTERACTION_STATES":
+        if not (contract.get("ui") or {}).get("required"):
+            current["status"] = "not_applicable"
+            next_event = event_by_id(mode, "G2.WRITE_VISUAL_ACCEPTANCE")
+            next_event["status"] = "active"
+        else:
+            state_map = g3_design._default_interaction_state_map(mode)
+            if state_map.get("status") != "ok":
+                _block_current(mode, current, f"interaction-state-map status must be ok, got {state_map.get('status')!r}")
+                save_mode(ws, mode)
+                raise StateError(current["blocked_reason"])
+            contract["interaction_state_map"] = state_map
+            contract["deliverables"]["interaction_state_map"] = str(_path_in_run(mode, "interaction-state-map.json").resolve())
+            g3_design._write_interaction_state_map(mode, state_map)
+            next_event = _complete_current(mode, event_id)
+
+    elif event_id == "G2.WRITE_VISUAL_ACCEPTANCE":
+        if not (contract.get("ui") or {}).get("required"):
+            current["status"] = "not_applicable"
+            next_event = event_by_id(mode, "G2.CHECK_UI_IMPLEMENTATION_CONTRACT")
+            next_event["status"] = "active"
+        else:
+            acceptance = g3_design._default_visual_acceptance(mode)
+            if acceptance.get("status") != "ok":
+                _block_current(mode, current, f"visual-acceptance status must be ok, got {acceptance.get('status')!r}")
+                save_mode(ws, mode)
+                raise StateError(current["blocked_reason"])
+            contract["visual_acceptance"] = acceptance
+            contract["deliverables"]["visual_acceptance"] = str(_path_in_run(mode, "visual-acceptance.json").resolve())
+            try:
+                g3_design._ensure_pencil_reference_screenshots(mode, acceptance)
+            except StateError as exc:
+                _block_current(mode, current, str(exc))
+                save_mode(ws, mode)
+                raise
+            next_event = _complete_current(mode, event_id)
+
+    elif event_id == "G2.CHECK_UI_IMPLEMENTATION_CONTRACT":
+        try:
+            g3_design._assert_ui_implementation_contract_ready(mode)
+        except StateError as exc:
+            _block_current(mode, current, str(exc))
+            save_mode(ws, mode)
+            raise
+        next_event = _complete_current(mode, event_id)
+
+    elif event_id == "G2.WRITE_PENCIL_CONTRACT_MAP":
+        if not (contract.get("ui") or {}).get("required"):
+            current["status"] = "not_applicable"
+            next_event = event_by_id(mode, "G2.CHECK_PENCIL_CONTRACT_MAP")
+            next_event["status"] = "active"
+        else:
+            contract_map = g3_design._default_pencil_contract_map(mode)
+            if contract_map.get("status") != "ok":
+                _block_current(mode, current, f"pencil-contract-map status must be ok, got {contract_map.get('status')!r}")
+                save_mode(ws, mode)
+                raise StateError(current["blocked_reason"])
+            contract["pencil_contract_map"] = contract_map
+            contract["deliverables"]["pencil_contract_map"] = str(_path_in_run(mode, "pencil-contract-map.json").resolve())
+            g3_design._write_pencil_contract_map(mode, contract_map)
+            next_event = _complete_current(mode, event_id)
+
+    elif event_id == "G2.CHECK_PENCIL_CONTRACT_MAP":
+        try:
+            g3_design._assert_pencil_contract_map_ready(mode)
+        except StateError as exc:
+            _block_current(mode, current, str(exc))
+            save_mode(ws, mode)
+            raise
+        next_event = _complete_current(mode, event_id)
+
     elif event_id == "G2.DRAFT_DESIGN_CONTRACT":
         contract["status"] = "drafted"
         contract["drafted_at"] = utc_now()
@@ -1577,6 +1727,13 @@ def advance_g2(ws: Workspace, note: str = "", *, trace: bool = True) -> dict[str
                 "Pencil .pen source",
                 "frame-inventory.json",
                 "feature-ui-map.json",
+                "ui-code-map.json",
+                "ui-layout-spec.json",
+                "design-tokens.json",
+                "interaction-state-map.json",
+                "visual-acceptance.json",
+                "pencil-contract-map.json",
+                "evidence/g2/reference/*.png",
                 "UI frame list",
                 "G1 feature to UI frame mapping",
             ]
@@ -1637,12 +1794,14 @@ def _assert_g2_ready(mode: dict[str, Any]) -> None:
                 raise StateError(f"{event_id} must be done for UI projects")
         if ui.get("feature_ui_map_status") != "ok":
             raise StateError("feature-ui-map status must be ok for UI projects")
+        g3_design._assert_ui_implementation_contract_ready(mode)
+        g3_design._assert_pencil_contract_map_ready(mode)
     else:
         for event_id in PENCIL_SKIP_EVENTS:
             if _event(mode, event_id).get("status") != "not_applicable":
                 raise StateError(f"{event_id} must be not_applicable for non-UI projects")
-    if not contract.get("project_definition"):
-        raise StateError("g2_contract.project_definition is missing")
+    if not contract.get("project_definition_contract"):
+        raise StateError("g2_contract.project_definition_contract is missing")
     if not contract.get("source_review"):
         raise StateError("g2_contract.source_review is missing")
 

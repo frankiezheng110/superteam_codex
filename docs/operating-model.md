@@ -50,6 +50,28 @@ This prevents nested SuperTeam runs. If the project is already inside
 `RUN -> G4`, a small coding task belongs to the current G4 work item; it must
 not start a new `RUN`.
 
+## Fixed Agent Definitions And Role Slots
+
+Agents are fixed SuperTeam role definitions, not Codex display names. Every run
+materializes `mode.json.agent_roster.roles.<role>` from the original SuperTeam
+agent definition file and its `rules_sha256`. The runtime treats
+`role + agent_definition_path + rules_sha256` as the role identity; random
+Codex UI names such as `Rawls` or `Tesla` are ignored.
+
+During one run, every role binds to at most one
+`mode.json.agent_slots.<role>.agent_id`. The first invocation for a role may use
+`spawn_agent` only to initialize the missing slot. Later events for the same
+role must reuse the existing agent with `send_input` and record the same
+`agent_id`.
+
+The runtime records every role invocation through `orchestrator.agent_calls`,
+validates it against `agent_roster`, and stores the durable instance binding in
+`agent_slots`. If a role already has a bound slot and a later signal supplies a
+different real `agent_id`, or if the recorded definition path/hash drifts away
+from `agent_roster`, the hook-trace path fails. This prevents `inspector`,
+`designer`, `executor`, `reviewer`, `verifier`, and `writer` from being
+respawned under event-specific names until the agent limit is exhausted.
+
 ## G1
 
 G1 asks the compact project definition questions:
@@ -165,7 +187,8 @@ Hard constraints:
   memory or free interpretation.
 - G6 must verify implementation screenshots against `visual-acceptance.json`.
 - `SCAN_IMPLEMENTATION_SURFACE`, `MAP_PENCIL_TO_CODE_TARGETS`, and
-  `DRAFT_EXECUTION_PLAN` require real agent spawn/result records.
+  `DRAFT_EXECUTION_PLAN` require real agent spawn/result records bound to the
+  reusable role slot.
 - Every agent-owned event requires an Inspector spawn/result before the next
   event.
 - `G3.COMPLETE` requires explicit user approval and advances the active global
@@ -193,8 +216,10 @@ The G4 subtree is:
 Hard constraints:
 
 - G4 cannot start before `G3.COMPLETE` and approved `g3_approval`.
-- The main session must spawn the original SuperTeam `executor` agent and bind
-  the spawn record to the original agent file path and sha256.
+- The main session must use the reusable SuperTeam `executor` role slot and
+  bind the spawn record to the original agent file path and sha256. If the
+  executor slot already exists, continue it with `send_input`; do not spawn a
+  new event-specific executor.
 - Code-changing work items must record RED then GREEN TDD evidence, or an
   explicit deferred/blocked state.
 - UI work items must receive G3 UI guidance before implementation.
@@ -231,16 +256,19 @@ The G5 subtree is:
 Hard constraints:
 
 - G5 cannot start before `G4.COMPLETE`.
-- The main session must spawn the original SuperTeam `reviewer` agent and bind
-  the spawn record to the original agent file path and sha256.
-- `06-review.md` must be authored before reviewer result can close.
-- `06-review.md` must contain a CLEAR or CLEAR_WITH_CONCERNS verdict, Delivery
-  Scope Check, TDD Gate, and Checklist Coverage.
+- The main session must use the reusable SuperTeam `reviewer` role slot and
+  bind the spawn record to the original agent file path and sha256.
+- `06-review.md` and `review-contract.json` must be authored before reviewer
+  result can close.
+- `review-contract.json` is the hard gate for CLEAR, CLEAR_WITH_CONCERNS, or
+  BLOCK, Delivery Scope Check, TDD Gate, and Checklist Coverage. Markdown
+  review prose is not accepted as the gate authority.
 - A BLOCK verdict does not enter G6. The runtime archives the current G4/G5
   artifacts, records a repair iteration, resets the active global phase to
   `G4`, and the run repeats `G4 -> G5 -> G6`.
-- UI projects require a UI Quality Gate section and a real `designer`
-  spawn/result before G5 can close.
+- UI projects require `review-contract.json:ui_quality_gate`, passing visual
+  review evidence, and a real reusable `designer` slot spawn/result before G5
+  can close.
 - `G5.COMPLETE` advances the active global phase to `G6`.
 
 ## G6
@@ -270,20 +298,23 @@ The G6 subtree is:
 Hard constraints:
 
 - G6 cannot start before `G5.COMPLETE` and completed `g5_contract`.
-- The main session must spawn the original SuperTeam `verifier` agent and bind
-  the spawn record to the original agent file path and sha256.
-- The verifier must write `07-verification.md` before verifier result can close.
-- `07-verification.md` must contain verdict `PASS`, `FAIL`, or `INCOMPLETE`.
+- The main session must use the reusable SuperTeam `verifier` role slot and
+  bind the spawn record to the original agent file path and sha256.
+- The verifier must write `07-verification.md` and
+  `verification-contract.json` before verifier result can close.
+- `verification-contract.json` is the hard gate for verdict `PASS`, `FAIL`, or
+  `INCOMPLETE`, `delivery_confidence`, Evidence Summary, Requirement Status,
+  fresh test evidence, and UI evidence when applicable. Markdown verification
+  prose is not accepted as the gate authority.
 - Only `PASS` can enter G7.
 - `FAIL` or `INCOMPLETE` does not stop the run as a terminal error. The runtime
   archives the current G4/G5/G6 artifacts, records a repair iteration, resets
   the active global phase to `G4`, and the run repeats `G4 -> G5 -> G6`.
-- Code-changing work requires fresh test suite evidence in `07-verification.md`;
-  build-only or review-only evidence is not enough.
-- UI projects require UI evidence against Pencil-derived contracts and visual
-  acceptance rules.
-- `07-verification.md` must include Evidence Summary, Requirement Status, and
-  `delivery_confidence: high|medium|low`.
+- Code-changing work requires concrete fresh test commands in
+  `verification-contract.json:test_suite_evidence`; build-only or review-only
+  evidence is not enough.
+- UI projects require structured UI evidence in `verification-contract.json`
+  plus visual acceptance evidence against Pencil-derived contracts.
 - `G6.COMPLETE` advances the active global phase to `G7`.
 
 ## G7
@@ -314,13 +345,18 @@ The G7 subtree is:
 
 Hard constraints:
 
-- G7 cannot start before a G6 verifier `PASS`.
-- The main session must spawn the original SuperTeam `inspector` before writer
-  handoff and bind the spawn record to the original agent file path and sha256.
-- The inspector report must exist before the writer can close finish work.
-- The main session must spawn the original SuperTeam `writer` for
-  `08-finish.md` and `retrospective.md`.
-- `08-finish.md` must acknowledge verifier PASS and the inspector report.
-- `retrospective.md` must contain a non-empty `improvement_action`.
+- G7 cannot start before a G6 verifier `PASS` recorded in
+  `verification-contract.json` and completed `g6_contract`.
+- The main session must use the reusable SuperTeam `inspector` role slot before
+  writer handoff and bind the spawn record to the original agent file path and
+  sha256.
+- The inspector report and `inspector-audit.json` must exist before the writer
+  can close finish work.
+- The main session must use the reusable SuperTeam `writer` role slot for
+  `08-finish.md`, `retrospective.md`, and `finish-contract.json`.
+- `finish-contract.json` must acknowledge verifier PASS, acknowledge
+  `inspector-audit.json`, declare no product code changes, and contain a
+  non-empty `improvement_action`. Markdown finish prose is not accepted as the
+  finish gate authority.
 - `G7.COMPLETE` sets the run lifecycle to complete and leaves no active global
   phase.

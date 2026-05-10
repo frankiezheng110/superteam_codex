@@ -29,7 +29,7 @@ Each implementation task must record in `05-execution.md`:
 
 - source files consumed;
 - UI frame ids consumed, or `NO_UI`;
-- G3 UI guidance consumed before implementation for UI work items;
+- G2/G3 UI guidance consumed before implementation for UI work items;
 - TDD RED then GREEN evidence, or an explicit deferred/blocked decision;
 - files changed;
 - verification command and result.
@@ -37,3 +37,9 @@ Each implementation task must record in `05-execution.md`:
 Use `g4-next` and `g4-trace` as the machine rail. Do not claim executor
 completion until the runtime accepts TDD state, UI guidance state, execution
 evidence, and readiness inspection.
+
+Agent definition rule: read `mode.json.agent_roster.roles.executor` and
+`mode.json.agent_roster.roles.inspector` before role calls. If
+`mode.json.agent_slots.<role>.agent_id` already exists, continue that same
+agent with `send_input` and record the existing id; repair work reuses the same
+executor slot.

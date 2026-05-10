@@ -36,13 +36,18 @@ Target projects use `.superteam_codex/`, never the legacy `.superteam/` runtime:
   runs/<task-slug>/
     00-source-pack.md
     01-project-definition.md
+    project-definition.json
     02-design.md
     03-feature-ui-map.md
     04-plan.md
     05-execution.md
     06-review.md
+    review-contract.json
     07-verification.md
+    verification-contract.json
     08-finish.md
+    inspector-audit.json
+    finish-contract.json
     source-manifest.json
     frame-inventory.json
     feature-ui-map.json

@@ -34,6 +34,14 @@ before interpreting any subtask. If a run is already active, do not start a
 nested SuperTeam run for a smaller code task; attach the task to the active
 global stage.
 
+Agents are fixed role definitions for the whole run. Read
+`mode.json.agent_roster.roles.<role>` before any role call; the role identity is
+the definition path plus `rules_sha256`, not the Codex display name. If
+`mode.json.agent_slots.<role>.agent_id` already exists, use `send_input` to
+continue that agent and record the same id. Use `spawn_agent` only to initialize
+a missing role slot. Never create event-specific names such as
+`inspector-g2-...` or `executor-repair-...`.
+
 Do not implement product code until G1, G2, and G3 artifacts exist in the active
 run directory. For UI-bearing work, G2/G3 must include the generated
 `frame-inventory` and `feature-ui-map` artifacts.
@@ -52,6 +60,7 @@ run directory. For UI-bearing work, G2/G3 must include the generated
 
 ## Main Session Role
 
-The main session is the Orchestrator. Spawn subagents only when the work can be
-split into independent, bounded tasks. Every delegated task must cite the
-source files and frame ids it owns.
+The main session is the Orchestrator. Call fixed SuperTeam roles through
+`agent_roster`; initialize a subagent only when the workflow role has no slot
+yet and the work can be split into independent, bounded tasks. Every delegated
+task must cite the source files and frame ids it owns.

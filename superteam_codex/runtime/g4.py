@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .agent_registry import agent_spawn_contract, require_superteam_agent
+from .agent_registry import agent_reuse_hook_instruction, agent_spawn_contract, register_agent_call, require_superteam_agent
 from .event_tree import (
     G4_EVENT_IDS,
     active_event,
@@ -26,6 +26,7 @@ from .tdd import (
     mark_active_ui_guidance,
     render_tdd_execution_markdown,
 )
+from .visual_evidence import g4_visual_evidence_errors, reference_screenshot_errors
 from .workspace import Workspace, file_sha256, read_json, utc_now, write_text
 
 
@@ -196,7 +197,7 @@ def _set_orchestrator(
     state["spawn_status"] = spawn_status
     state["expected_agent"] = expected_agent
     state["expected_agent_definition"] = agent_spawn_contract(expected_agent) if expected_agent else None
-    state["hook_instruction"] = instruction
+    state["hook_instruction"] = agent_reuse_hook_instruction(expected_agent, instruction) if expected_agent else instruction
 
 
 def _set_inspector(
@@ -223,22 +224,9 @@ def _record_agent_call(
     agent_id: str,
     status: str,
     scope: str,
-) -> None:
-    calls = _orchestrator_state(mode).setdefault("agent_calls", [])
-    if not isinstance(calls, list):
-        calls = []
-        _orchestrator_state(mode)["agent_calls"] = calls
-    calls.append(
-        {
-            "ts": utc_now(),
-            "event": event_id,
-            "role": agent,
-            "agent_id": agent_id,
-            "scope": scope,
-            "status": status,
-            **agent_spawn_contract(agent),
-        }
-    )
+) -> str:
+    call = register_agent_call(mode, event_id, agent, agent_id, status, scope)
+    return str(call.get("agent_id") or "")
 
 
 def _has_agent_call(mode: dict[str, Any], event_id: str, agent: str) -> bool:
@@ -396,7 +384,7 @@ def _ensure_g4_spawn_required(mode: dict[str, Any]) -> None:
     if isinstance(repair_context, dict) and repair_context:
         instruction = f"{instruction}; repair iteration {repair_context.get('iteration')}: fix G6 {repair_context.get('verdict')} findings before broad changes"
     if ui_guidance and ui_guidance.get("contract"):
-        instruction = f"{instruction}; first UI work item must follow G3 UI contract before implementation: {ui_guidance['contract']}"
+        instruction = f"{instruction}; first UI work item must follow G2/G3 UI contract before implementation: {ui_guidance['contract']}"
     _set_orchestrator(
         mode,
         event_id,
@@ -453,8 +441,14 @@ def _require_g4_inspector(mode: dict[str, Any], event_id: str) -> None:
 
 
 def _record_g4_inspector_spawn(mode: dict[str, Any], event_id: str, agent_id: str) -> None:
-    call_id = agent_id.strip() or f"{INSPECTOR_AGENT}-local"
-    _record_agent_call(mode, event_id, INSPECTOR_AGENT, call_id, "spawned", f"inspect {event_id} trace before review")
+    call_id = _record_agent_call(
+        mode,
+        event_id,
+        INSPECTOR_AGENT,
+        agent_id.strip() or f"{INSPECTOR_AGENT}-local",
+        "spawned",
+        f"inspect {event_id} trace before review",
+    )
     _trace_g4_hook(mode, f"{event_id}.inspector_spawn_record", f"agent_id={call_id}", event_id, "record inspector spawn", {"agent": INSPECTOR_AGENT, "agent_id": call_id, **agent_spawn_contract(INSPECTOR_AGENT)})
     _trace_g4_hook_once(mode, f"{event_id}.inspector_wait_result", "waiting for inspector result", event_id, "wait for inspector result")
     _set_orchestrator(
@@ -497,6 +491,9 @@ def _assert_g4_ready(mode: dict[str, Any]) -> None:
         raise StateError("05-execution.md is missing before G4.READINESS_CHECK")
     assert_tdd_complete(mode)
     assert_ui_guidance_complete(mode)
+    visual_errors = g4_visual_evidence_errors(mode)
+    if visual_errors:
+        raise StateError("G4 visual evidence gate blocked: " + "; ".join(visual_errors))
     execution_text = execution_path(mode).read_text(encoding="utf-8")
     tdd_errors = execution_tdd_evidence_errors(mode, execution_text)
     if tdd_errors:
@@ -525,6 +522,11 @@ def advance_g4(ws: Workspace, note: str = "") -> dict[str, Any]:
     elif event_id == "G4.LOAD_APPROVED_PLAN":
         if not _path_in_run(mode, "04-plan.md").exists():
             raise StateError("04-plan.md is missing before G4")
+        if not _path_in_run(mode, "pencil-contract-map.json").exists():
+            raise StateError("pencil-contract-map.json is missing before G4")
+        screenshot_errors = reference_screenshot_errors(mode)
+        if screenshot_errors:
+            raise StateError("G4 cannot start UI implementation without G2 reference screenshots: " + "; ".join(screenshot_errors))
         plan = _load_execution_plan(mode)
         contract["execution_plan"] = plan
         ensure_tdd_state(mode, plan)
@@ -701,7 +703,7 @@ def apply_g4_hook_trace_signal(
         if signal == "tdd-next":
             ui_guidance = _ensure_g4_ui_guidance(mode, event_id, "after tdd-next")
         if ui_guidance and ui_guidance.get("contract"):
-            instruction = f"{instruction}; follow G3 UI contract before implementation: {ui_guidance['contract']}"
+            instruction = f"{instruction}; follow G2/G3 UI contract before implementation: {ui_guidance['contract']}"
         _set_orchestrator(
             mode,
             event_id,
@@ -723,8 +725,14 @@ def apply_g4_hook_trace_signal(
         if agent_name != expected_agent:
             raise StateError(f"{event_id} requires agent {expected_agent}, got {agent_name}")
         _ensure_g4_spawn_required(mode)
-        call_id = agent_id.strip() or f"{agent_name}-local"
-        _record_agent_call(mode, event_id, agent_name, call_id, "spawned", "execute the approved G3 plan")
+        call_id = _record_agent_call(
+            mode,
+            event_id,
+            agent_name,
+            agent_id.strip() or f"{agent_name}-local",
+            "spawned",
+            "execute the approved G3 plan",
+        )
         _trace_g4_hook(mode, f"{event_id}.spawn_record", f"agent_id={call_id}", event_id, f"record {agent_name} spawn", {"agent": agent_name, "agent_id": call_id, **agent_spawn_contract(agent_name)})
         _trace_g4_hook_once(mode, f"{event_id}.wait_result", "waiting for executor result", event_id, "wait for executor result")
         _set_orchestrator(

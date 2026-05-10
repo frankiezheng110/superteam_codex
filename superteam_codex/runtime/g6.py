@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
 import shutil
 from pathlib import Path
 from typing import Any
 
-from .agent_registry import agent_spawn_contract, require_superteam_agent
+from .agent_registry import agent_reuse_hook_instruction, agent_spawn_contract, register_agent_call, require_superteam_agent
 from .event_tree import (
     G6_EVENT_IDS,
     active_event,
@@ -18,23 +17,30 @@ from .event_tree import (
 )
 from .state import StateError, load_mode, save_mode, validate_mode
 from .tdd import code_changing_work_items
+from .visual_evidence import G5_VISUAL_REPORT, G6_VISUAL_REPORT, g6_visual_evidence_errors
 from .workspace import Workspace, file_sha256, read_json, utc_now
 
 
 VERIFIER_AGENT = require_superteam_agent("verifier", context="G6.SPAWN_VERIFIER")
+VERIFICATION_CONTRACT = "verification-contract.json"
 
 VERIFICATION_INPUT_FILES = [
+    "project-definition.json",
     "01-project-definition.md",
     "02-design.md",
     "04-plan.md",
     "05-execution.md",
     "06-review.md",
+    "review-contract.json",
     "implementation-plan.json",
     "ui-code-map.json",
     "ui-layout-spec.json",
     "design-tokens.json",
     "interaction-state-map.json",
     "visual-acceptance.json",
+    "pencil-contract-map.json",
+    G5_VISUAL_REPORT,
+    G6_VISUAL_REPORT,
 ]
 
 
@@ -83,6 +89,10 @@ def _path_in_run(mode: dict[str, Any], name: str) -> Path:
 
 def verification_path(mode: dict[str, Any]) -> Path:
     return _path_in_run(mode, "07-verification.md")
+
+
+def verification_contract_path(mode: dict[str, Any]) -> Path:
+    return _path_in_run(mode, VERIFICATION_CONTRACT)
 
 
 def _contract(mode: dict[str, Any]) -> dict[str, Any]:
@@ -202,7 +212,7 @@ def _set_orchestrator(
     state["spawn_status"] = spawn_status
     state["expected_agent"] = expected_agent
     state["expected_agent_definition"] = agent_spawn_contract(expected_agent) if expected_agent else None
-    state["hook_instruction"] = instruction
+    state["hook_instruction"] = agent_reuse_hook_instruction(expected_agent, instruction) if expected_agent else instruction
 
 
 def _set_inspector_not_required(mode: dict[str, Any], event_id: str) -> None:
@@ -221,22 +231,9 @@ def _record_agent_call(
     agent_id: str,
     status: str,
     scope: str,
-) -> None:
-    calls = _orchestrator_state(mode).setdefault("agent_calls", [])
-    if not isinstance(calls, list):
-        calls = []
-        _orchestrator_state(mode)["agent_calls"] = calls
-    calls.append(
-        {
-            "ts": utc_now(),
-            "event": event_id,
-            "role": agent,
-            "agent_id": agent_id,
-            "scope": scope,
-            "status": status,
-            **agent_spawn_contract(agent),
-        }
-    )
+) -> str:
+    call = register_agent_call(mode, event_id, agent, agent_id, status, scope)
+    return str(call.get("agent_id") or "")
 
 
 def _has_agent_call(mode: dict[str, Any], event_id: str, agent: str, *, status: str | None = None) -> bool:
@@ -331,6 +328,9 @@ def _ui_guidance_payload(mode: dict[str, Any]) -> dict[str, Any]:
         "design_tokens_status": _load_json_artifact(mode, "design-tokens.json").get("status"),
         "interaction_state_status": _load_json_artifact(mode, "interaction-state-map.json").get("status"),
         "visual_acceptance": _load_json_artifact(mode, "visual-acceptance.json"),
+        "pencil_contract_map": _load_json_artifact(mode, "pencil-contract-map.json"),
+        "required_g5_visual_report": G5_VISUAL_REPORT,
+        "required_g6_visual_report": G6_VISUAL_REPORT,
         "g5_ui_quality": ((mode.get("g5_contract") or {}).get("ui_quality") or {}),
     }
 
@@ -373,8 +373,10 @@ def _trace_verification_guidance(mode: dict[str, Any], event_id: str) -> None:
             "ui_project=true",
             event_id,
             (
-                "guide verifier before UI judgment: produce fresh visual/layout evidence against Pencil-derived "
-                "ui-code-map, ui-layout-spec, design-tokens, interaction-state-map, visual-acceptance, and G5 UI review"
+                "guide verifier before UI judgment: keep the normal G6 requirement, evidence, regression, and test verification; "
+                "add fresh visual/layout evidence against G2 Pencil-derived reference screenshots, implementation screenshots, pencil-contract-map, ui-code-map, ui-layout-spec, "
+                "design-tokens, interaction-state-map, visual-acceptance, G5 UI review, and G5 visual-review-report; "
+                f"write final PASS/FAIL machine evidence to {G6_VISUAL_REPORT}"
             ),
             {"ui_verification_guidance": _ui_guidance_payload(mode)},
         )
@@ -400,7 +402,7 @@ def _ensure_verifier_required(mode: dict[str, Any]) -> None:
         f"{event_id}.spawn_required",
         f"expected_agent={VERIFIER_AGENT}",
         event_id,
-        "spawn verifier for independent fresh-evidence verdict; OR must not impersonate verifier",
+        f"spawn verifier for independent fresh-evidence verdict; verifier must write {VERIFICATION_CONTRACT}; OR must not impersonate verifier",
         {"expected_agent": VERIFIER_AGENT, **agent_spawn_contract(VERIFIER_AGENT)},
     )
     _set_orchestrator(
@@ -409,49 +411,78 @@ def _ensure_verifier_required(mode: dict[str, Any]) -> None:
         spawn_decision="required",
         spawn_status="pending",
         expected_agent=VERIFIER_AGENT,
-        instruction="spawn verifier; provide G6 guidance and original SuperTeam verifier rules before verification starts",
+        instruction=f"spawn verifier; provide G6 guidance and require {VERIFICATION_CONTRACT} plus original SuperTeam verifier rules before verification starts",
     )
     _set_inspector_not_required(mode, event_id)
 
 
-def _verification_verdict(text: str) -> str | None:
-    match = re.search(r"(?im)^\s*(?:verdict|status)\s*:\s*(PASS|FAIL|INCOMPLETE)\b", text)
-    if match:
-        return match.group(1)
-    match = re.search(r"(?im)\b(PASS|FAIL|INCOMPLETE)\b", text)
-    return match.group(1) if match else None
+def _load_verification_contract(mode: dict[str, Any]) -> dict[str, Any]:
+    data = read_json(verification_contract_path(mode), {})
+    return data if isinstance(data, dict) else {}
 
 
-def _delivery_confidence(text: str) -> str | None:
-    match = re.search(r"(?im)^\s*delivery_confidence\s*:\s*(high|medium|low)\b", text)
-    return match.group(1).lower() if match else None
+def _verification_field_status(contract: dict[str, Any], key: str) -> str:
+    value = contract.get(key)
+    if isinstance(value, dict):
+        return str(value.get("status") or "").strip().lower()
+    return ""
 
 
-def _has_section(text: str, title_pattern: str) -> bool:
-    return bool(re.search(rf"(?im)^#+\s*{title_pattern}\b", text) or re.search(title_pattern, text, re.IGNORECASE))
+def _passing_status(status: str) -> bool:
+    return status in {"pass", "passed", "ok", "clear"}
 
 
-def verification_gate_errors(mode: dict[str, Any], text: str) -> list[str]:
+def _verification_contract_basic_errors(contract: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    verdict = _verification_verdict(text)
+    if contract.get("schema") != "superteam_codex.verification_contract.v1":
+        errors.append("verification-contract.json schema must be superteam_codex.verification_contract.v1")
+    verdict = contract.get("verdict")
     if verdict not in {"PASS", "FAIL", "INCOMPLETE"}:
-        errors.append("07-verification.md verdict must be PASS, FAIL, or INCOMPLETE")
-    if not _has_section(text, r"Evidence\s+Summary|evidence_summary"):
-        errors.append("07-verification.md is missing Evidence Summary")
-    if not _has_section(text, r"Requirement\s+Status|requirement_status"):
-        errors.append("07-verification.md is missing Requirement Status")
-    if _delivery_confidence(text) is None:
-        errors.append("07-verification.md is missing delivery_confidence: high|medium|low")
+        errors.append("verification-contract.json verdict must be PASS, FAIL, or INCOMPLETE")
+    if str(contract.get("delivery_confidence") or "").strip().lower() not in {"high", "medium", "low"}:
+        errors.append("verification-contract.json delivery_confidence must be high, medium, or low")
+    for key in ["evidence_summary", "requirement_status"]:
+        value = contract.get(key)
+        if not isinstance(value, dict) or not str(value.get("status") or "").strip():
+            errors.append(f"verification-contract.json is missing {key}.status")
+    return errors
+
+
+def verification_gate_errors(mode: dict[str, Any], contract: dict[str, Any] | None = None) -> list[str]:
+    if contract is None:
+        contract = _load_verification_contract(mode)
+    errors = _verification_contract_basic_errors(contract)
+    if not verification_contract_path(mode).exists():
+        errors.append("verification-contract.json is missing")
+    verdict = contract.get("verdict")
     try:
         code_items = code_changing_work_items(_implementation_plan(mode))
     except Exception:
         code_items = []
-    if code_items and not _has_section(text, r"Test\s+Suite\s+Evidence|test_suite_evidence|Fresh\s+Test\s+Evidence"):
-        errors.append("07-verification.md is missing fresh test suite evidence for code-changing work")
-    if code_items and not re.search(r"(?im)\b(command|npm|pytest|unittest|cargo|go test|test)\b", text):
-        errors.append("07-verification.md must include concrete fresh test command evidence")
-    if _is_ui_project(mode) and not _has_section(text, r"UI\s+Evidence|Visual\s+Acceptance|Aesthetic\s+Contract\s+Evidence"):
-        errors.append("07-verification.md is missing UI evidence for a UI project")
+    if code_items:
+        suite = contract.get("test_suite_evidence")
+        commands = suite.get("commands") if isinstance(suite, dict) else []
+        if not isinstance(suite, dict) or not str(suite.get("status") or "").strip():
+            errors.append("verification-contract.json is missing test_suite_evidence.status for code-changing work")
+        if not isinstance(commands, list) or not commands:
+            errors.append("verification-contract.json must include concrete fresh test_suite_evidence.commands")
+    if _is_ui_project(mode):
+        ui_evidence = contract.get("ui_evidence")
+        if not isinstance(ui_evidence, dict) or not str(ui_evidence.get("status") or "").strip():
+            errors.append("verification-contract.json is missing ui_evidence.status for a UI project")
+        elif verdict == "PASS" and not _passing_status(str(ui_evidence.get("status") or "").strip().lower()):
+            errors.append("verification-contract.json ui_evidence.status must pass before G7")
+    if _is_ui_project(mode) and verdict == "PASS":
+        visual_errors = g6_visual_evidence_errors(mode)
+        if visual_errors:
+            errors.append("G6 cannot PASS UI verification without passing visual evidence: " + "; ".join(visual_errors))
+    if verdict == "PASS":
+        for key in ["evidence_summary", "requirement_status"]:
+            status = _verification_field_status(contract, key)
+            if not _passing_status(status):
+                errors.append(f"verification-contract.json {key}.status must pass before G7")
+        if code_items and not _passing_status(_verification_field_status(contract, "test_suite_evidence")):
+            errors.append("verification-contract.json test_suite_evidence.status must pass before G7")
     return errors
 
 
@@ -459,23 +490,30 @@ def _record_verification_evidence(mode: dict[str, Any]) -> None:
     path = verification_path(mode)
     if not path.exists():
         raise StateError("07-verification.md is missing; verifier must write the verification artifact before G6 can advance")
-    text = path.read_text(encoding="utf-8")
+    contract_path = verification_contract_path(mode)
+    if not contract_path.exists():
+        raise StateError("verification-contract.json is missing; verifier must write the machine verification contract before G6 can advance")
+    contract_data = _load_verification_contract(mode)
+    basic_errors = _verification_contract_basic_errors(contract_data)
+    if basic_errors:
+        raise StateError("verification-contract.json is invalid: " + "; ".join(basic_errors))
     _contract(mode)["verification_evidence"] = {
         "path": str(path.resolve()),
         "sha256": file_sha256(path),
+        "contract_path": str(contract_path.resolve()),
+        "contract_sha256": file_sha256(contract_path),
         "recorded_at": utc_now(),
     }
-    _contract(mode)["verdict"] = _verification_verdict(text)
-    _contract(mode)["delivery_confidence"] = _delivery_confidence(text)
+    _contract(mode)["verdict"] = contract_data.get("verdict")
+    _contract(mode)["delivery_confidence"] = contract_data.get("delivery_confidence")
 
 
 def _assert_g6_gate_ready(mode: dict[str, Any]) -> None:
     path = verification_path(mode)
     if not path.exists():
         raise StateError("07-verification.md is missing")
-    text = path.read_text(encoding="utf-8")
     _record_verification_evidence(mode)
-    errors = verification_gate_errors(mode, text)
+    errors = verification_gate_errors(mode)
     if errors:
         raise StateError("G6 verification gate blocked: " + "; ".join(errors))
 
@@ -534,7 +572,7 @@ def _archive_repair_artifacts(mode: dict[str, Any], iteration: int) -> dict[str,
     archive_dir = Path(mode["run_dir"]) / "evidence" / f"g6-repair-{iteration:03d}"
     archive_dir.mkdir(parents=True, exist_ok=True)
     artifacts: dict[str, Any] = {}
-    for name in ["05-execution.md", "06-review.md", "07-verification.md"]:
+    for name in ["05-execution.md", "06-review.md", "review-contract.json", "07-verification.md", VERIFICATION_CONTRACT]:
         source = _path_in_run(mode, name)
         record: dict[str, Any] = {"source": str(source.resolve()), "exists": source.exists()}
         if source.exists() and source.is_file():
@@ -622,6 +660,7 @@ def _return_to_g4_repair(ws: Workspace, mode: dict[str, Any], verdict: str, note
         "next_event": "G4.START",
         "archive": archive["path"],
         "verification": str(verification_path(mode).resolve()),
+        "verification_contract": str(verification_contract_path(mode).resolve()),
     }
 
 
@@ -703,6 +742,7 @@ def advance_g6(ws: Workspace, note: str = "") -> dict[str, Any]:
             "next_global_event": "G7",
             "next_event": next_id,
             "verification": str(verification_path(mode).resolve()),
+            "verification_contract": str(verification_contract_path(mode).resolve()),
         }
 
     else:
@@ -716,6 +756,7 @@ def advance_g6(ws: Workspace, note: str = "") -> dict[str, Any]:
         "status": "done",
         "next_event": next_event.get("id") if next_event else None,
         "verification": str(verification_path(mode).resolve()),
+        "verification_contract": str(verification_contract_path(mode).resolve()),
     }
 
 
@@ -794,12 +835,11 @@ def apply_g6_hook_trace_signal(
 
     if signal == "spawn-record":
         _ensure_verifier_required(mode)
-        call_id = agent_id.strip() or f"{agent_name}-local"
-        _record_agent_call(
+        call_id = _record_agent_call(
             mode,
             event_id,
             agent_name,
-            call_id,
+            agent_id.strip() or f"{agent_name}-local",
             "spawned",
             "verify delivery against G1-G5 artifacts using fresh evidence and original SuperTeam verifier rules",
         )
@@ -868,6 +908,7 @@ def _g6_trace_result(mode: dict[str, Any], before_index: int, advanced: list[dic
         "orchestrator": _orchestrator_state(mode),
         "inspector": _inspector_state(mode),
         "verification": str(verification_path(mode).resolve()),
+        "verification_contract": str(verification_contract_path(mode).resolve()),
     }
 
 
@@ -890,4 +931,5 @@ def g6_status(ws: Workspace) -> dict[str, Any]:
         "orchestrator": _orchestrator_state(mode),
         "inspector": _inspector_state(mode),
         "verification": str(verification_path(mode).resolve()),
+        "verification_contract": str(verification_contract_path(mode).resolve()),
     }

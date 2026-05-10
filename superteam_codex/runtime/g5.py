@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
 import shutil
 from pathlib import Path
 from typing import Any
 
-from .agent_registry import agent_spawn_contract, require_superteam_agent
+from .agent_registry import agent_reuse_hook_instruction, agent_spawn_contract, register_agent_call, require_superteam_agent
 from .event_tree import (
     G5_EVENT_IDS,
     active_event,
@@ -17,13 +16,16 @@ from .event_tree import (
     transition_to_phase,
 )
 from .state import StateError, load_mode, save_mode, validate_mode
+from .visual_evidence import G5_VISUAL_REPORT, g5_visual_evidence_errors
 from .workspace import Workspace, file_sha256, read_json, utc_now
 
 
 REVIEWER_AGENT = require_superteam_agent("reviewer", context="G5.SPAWN_REVIEWER")
 DESIGNER_AGENT = require_superteam_agent("designer", context="G5.UI_QUALITY_REVIEW")
+REVIEW_CONTRACT = "review-contract.json"
 
 REVIEW_INPUT_FILES = [
+    "project-definition.json",
     "01-project-definition.md",
     "02-design.md",
     "04-plan.md",
@@ -34,6 +36,8 @@ REVIEW_INPUT_FILES = [
     "design-tokens.json",
     "interaction-state-map.json",
     "visual-acceptance.json",
+    "pencil-contract-map.json",
+    G5_VISUAL_REPORT,
 ]
 
 
@@ -82,6 +86,10 @@ def _path_in_run(mode: dict[str, Any], name: str) -> Path:
 
 def review_path(mode: dict[str, Any]) -> Path:
     return _path_in_run(mode, "06-review.md")
+
+
+def review_contract_path(mode: dict[str, Any]) -> Path:
+    return _path_in_run(mode, REVIEW_CONTRACT)
 
 
 def _contract(mode: dict[str, Any]) -> dict[str, Any]:
@@ -201,7 +209,7 @@ def _set_orchestrator(
     state["spawn_status"] = spawn_status
     state["expected_agent"] = expected_agent
     state["expected_agent_definition"] = agent_spawn_contract(expected_agent) if expected_agent else None
-    state["hook_instruction"] = instruction
+    state["hook_instruction"] = agent_reuse_hook_instruction(expected_agent, instruction) if expected_agent else instruction
 
 
 def _set_inspector_not_required(mode: dict[str, Any], event_id: str) -> None:
@@ -220,22 +228,9 @@ def _record_agent_call(
     agent_id: str,
     status: str,
     scope: str,
-) -> None:
-    calls = _orchestrator_state(mode).setdefault("agent_calls", [])
-    if not isinstance(calls, list):
-        calls = []
-        _orchestrator_state(mode)["agent_calls"] = calls
-    calls.append(
-        {
-            "ts": utc_now(),
-            "event": event_id,
-            "role": agent,
-            "agent_id": agent_id,
-            "scope": scope,
-            "status": status,
-            **agent_spawn_contract(agent),
-        }
-    )
+) -> str:
+    call = register_agent_call(mode, event_id, agent, agent_id, status, scope)
+    return str(call.get("agent_id") or "")
 
 
 def _has_agent_call(mode: dict[str, Any], event_id: str, agent: str, *, status: str | None = None) -> bool:
@@ -332,6 +327,7 @@ def _ui_guidance_payload(mode: dict[str, Any]) -> dict[str, Any]:
     tokens = _load_json_artifact(mode, "design-tokens.json")
     interaction = _load_json_artifact(mode, "interaction-state-map.json")
     visual = _load_json_artifact(mode, "visual-acceptance.json")
+    pencil_contract = _load_json_artifact(mode, "pencil-contract-map.json")
     g4_tdd = ((mode.get("g4_contract") or {}).get("tdd") or {}) if isinstance(mode.get("g4_contract"), dict) else {}
     items = g4_tdd.get("items") if isinstance(g4_tdd.get("items"), dict) else {}
     g4_guidance = {
@@ -345,6 +341,8 @@ def _ui_guidance_payload(mode: dict[str, Any]) -> dict[str, Any]:
         "design_tokens_status": tokens.get("status"),
         "interaction_state_status": interaction.get("status"),
         "visual_acceptance": visual,
+        "pencil_contract_map": pencil_contract,
+        "required_visual_report": G5_VISUAL_REPORT,
         "g4_ui_guidance": g4_guidance,
     }
 
@@ -379,9 +377,11 @@ def _trace_review_guidance(mode: dict[str, Any], event_id: str) -> None:
             "ui_project=true",
             event_id,
             (
-                "guide reviewer before UI review: compare implementation screenshots and layout against "
-                "Pencil-derived ui-code-map, ui-layout-spec, design-tokens, interaction-state-map, "
-                "visual-acceptance, and G4 pre-implementation UI guidance"
+                "guide reviewer before UI review: keep the normal G5 quality, scope, TDD, test, and risk review; "
+                "add a UI fidelity comparison of implementation screenshots and layout against "
+                "G2 Pencil reference screenshots, pencil-contract-map, ui-code-map, ui-layout-spec, "
+                "design-tokens, interaction-state-map, visual-acceptance, and G4 pre-implementation UI guidance; "
+                f"write PASS/FAIL machine evidence to {G5_VISUAL_REPORT}"
             ),
             {"ui_review_guidance": payload},
         )
@@ -394,8 +394,9 @@ def _trace_review_guidance(mode: dict[str, Any], event_id: str) -> None:
                 f"ui_work_item={item.get('id')}",
                 event_id,
                 (
-                    "guide UI quality review before judgment: verify frame fidelity, layout, tokens, states, "
-                    "visual acceptance, and planned code targets"
+                    "guide UI quality review before judgment: in addition to normal G5 review, compare the "
+                    "implementation screenshot to the G2 Pencil reference screenshot, verify frame fidelity, layout, tokens, states, visual acceptance, "
+                    f"planned code targets, and record {G5_VISUAL_REPORT}"
                 ),
                 {"ui_work_item": item},
             )
@@ -410,7 +411,7 @@ def _ensure_g5_reviewer_required(mode: dict[str, Any]) -> None:
         f"{event_id}.spawn_required",
         f"expected_agent={REVIEWER_AGENT}",
         event_id,
-        "spawn reviewer for deliverable-quality gate; OR must not impersonate reviewer",
+        f"spawn reviewer for deliverable-quality gate; reviewer must write {REVIEW_CONTRACT}; OR must not impersonate reviewer",
         {"expected_agent": REVIEWER_AGENT, **agent_spawn_contract(REVIEWER_AGENT)},
     )
     _set_orchestrator(
@@ -419,7 +420,7 @@ def _ensure_g5_reviewer_required(mode: dict[str, Any]) -> None:
         spawn_decision="required",
         spawn_status="pending",
         expected_agent=REVIEWER_AGENT,
-        instruction="spawn reviewer; provide G5 review guidance and original SuperTeam reviewer rules before review starts",
+        instruction=f"spawn reviewer; provide G5 review guidance and require {REVIEW_CONTRACT} plus original SuperTeam reviewer rules before review starts",
     )
     _set_inspector_not_required(mode, event_id)
 
@@ -447,43 +448,69 @@ def _ensure_designer_required(mode: dict[str, Any]) -> None:
     _contract(mode)["ui_quality"] = {"required": True, "designer": _contract(mode).get("ui_quality", {}).get("designer")}
 
 
-def _review_verdict(text: str) -> str | None:
-    match = re.search(r"(?im)^\s*(?:verdict|recommendation|status)\s*:\s*(CLEAR_WITH_CONCERNS|CLEAR|BLOCK)\b", text)
-    if match:
-        return match.group(1)
-    match = re.search(r"(?im)\b(CLEAR_WITH_CONCERNS|CLEAR|BLOCK)\b", text)
-    return match.group(1) if match else None
+def _load_review_contract(mode: dict[str, Any]) -> dict[str, Any]:
+    path = review_contract_path(mode)
+    data = read_json(path, {})
+    return data if isinstance(data, dict) else {}
 
 
-def _has_section(text: str, title_pattern: str) -> bool:
-    return bool(re.search(rf"(?im)^#+\s*{title_pattern}\b", text) or re.search(title_pattern, text, re.IGNORECASE))
+def _review_field_status(contract: dict[str, Any], key: str) -> str:
+    value = contract.get(key)
+    if isinstance(value, dict):
+        return str(value.get("status") or "").strip().lower()
+    return ""
 
 
-def _extract_section(text: str, title_pattern: str) -> str:
-    pattern = re.compile(rf"(?ims)^#+\s*{title_pattern}\b[^\n]*\n(?P<body>.*?)(?=^#+\s|\Z)")
-    match = pattern.search(text)
-    return match.group("body") if match else ""
+def _passing_status(status: str) -> bool:
+    return status in {"pass", "passed", "ok", "clear", "not_applicable", "n/a", "waived"}
 
 
-def review_gate_errors(mode: dict[str, Any], text: str) -> list[str]:
+def _review_contract_basic_errors(contract: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    verdict = _review_verdict(text)
+    if contract.get("schema") != "superteam_codex.review_contract.v1":
+        errors.append("review-contract.json schema must be superteam_codex.review_contract.v1")
+    verdict = contract.get("verdict")
     if verdict not in {"CLEAR", "CLEAR_WITH_CONCERNS", "BLOCK"}:
-        errors.append("06-review.md verdict must be CLEAR, CLEAR_WITH_CONCERNS, or BLOCK")
-    if not _has_section(text, r"Delivery\s+Scope\s+Check|delivery_scope_check"):
-        errors.append("06-review.md is missing Delivery Scope Check")
-    tdd_section = _extract_section(text, r"TDD\s+Gate")
-    if not tdd_section:
-        errors.append("06-review.md is missing TDD Gate")
-    elif re.search(r"(?i)\bN/A\b|not\s+applicable", tdd_section):
-        if not re.search(r"(?i)tdd[_\s-]*exception|orchestrator[_\s-]*waiver", tdd_section):
-            errors.append("06-review.md TDD Gate declares N/A without an orchestrator waiver")
-    if not _has_section(text, r"Checklist\s+Coverage"):
-        errors.append("06-review.md is missing Checklist Coverage")
-    if _is_ui_project(mode) and not _has_section(text, r"UI\s+Quality\s+Gate"):
-        errors.append("06-review.md is missing UI Quality Gate for a UI project")
+        errors.append("review-contract.json verdict must be CLEAR, CLEAR_WITH_CONCERNS, or BLOCK")
+    for key in ["delivery_scope_check", "tdd_gate", "checklist_coverage"]:
+        value = contract.get(key)
+        if not isinstance(value, dict) or not str(value.get("status") or "").strip():
+            errors.append(f"review-contract.json is missing {key}.status")
+    tdd_gate = contract.get("tdd_gate")
+    if isinstance(tdd_gate, dict):
+        tdd_status = str(tdd_gate.get("status") or "").strip().lower()
+        if tdd_status in {"n/a", "not_applicable"} and not (tdd_gate.get("orchestrator_waiver") or tdd_gate.get("waiver_ref")):
+            errors.append("review-contract.json tdd_gate cannot be not_applicable without an orchestrator waiver")
+    return errors
+
+
+def review_gate_errors(mode: dict[str, Any], contract: dict[str, Any] | None = None) -> list[str]:
+    if contract is None:
+        contract = _load_review_contract(mode)
+    errors = _review_contract_basic_errors(contract)
+    if not review_contract_path(mode).exists():
+        errors.append("review-contract.json is missing")
+    verdict = contract.get("verdict")
+    if verdict in {"CLEAR", "CLEAR_WITH_CONCERNS"}:
+        for key in ["delivery_scope_check", "tdd_gate", "checklist_coverage"]:
+            status = _review_field_status(contract, key)
+            if not _passing_status(status):
+                errors.append(f"review-contract.json {key}.status must pass before G6")
+    if _is_ui_project(mode):
+        ui_quality_gate = contract.get("ui_quality_gate")
+        if not isinstance(ui_quality_gate, dict) or not str(ui_quality_gate.get("status") or "").strip():
+            errors.append("review-contract.json is missing ui_quality_gate.status for a UI project")
+        elif verdict in {"CLEAR", "CLEAR_WITH_CONCERNS"} and not _passing_status(str(ui_quality_gate.get("status") or "").strip().lower()):
+            errors.append("review-contract.json ui_quality_gate.status must pass before G6")
     if _is_ui_project(mode) and not ((_contract(mode).get("ui_quality") or {}).get("designer") or {}).get("result_note"):
         errors.append("G5 UI quality review requires designer participation before G6")
+    if _is_ui_project(mode) and verdict != "BLOCK":
+        visual_errors = g5_visual_evidence_errors(mode)
+        if visual_errors:
+            if verdict in {"CLEAR", "CLEAR_WITH_CONCERNS"}:
+                errors.append("G5 cannot clear UI review without passing visual evidence: " + "; ".join(visual_errors))
+            else:
+                errors.extend(visual_errors)
     return errors
 
 
@@ -491,23 +518,29 @@ def _record_review_evidence(mode: dict[str, Any]) -> None:
     path = review_path(mode)
     if not path.exists():
         raise StateError("06-review.md is missing; reviewer must write the review artifact before G5 can advance")
-    text = path.read_text(encoding="utf-8")
-    verdict = _review_verdict(text)
+    contract_path = review_contract_path(mode)
+    if not contract_path.exists():
+        raise StateError("review-contract.json is missing; reviewer must write the machine review contract before G5 can advance")
+    contract_data = _load_review_contract(mode)
+    basic_errors = _review_contract_basic_errors(contract_data)
+    if basic_errors:
+        raise StateError("review-contract.json is invalid: " + "; ".join(basic_errors))
     _contract(mode)["review_evidence"] = {
         "path": str(path.resolve()),
         "sha256": file_sha256(path),
+        "contract_path": str(contract_path.resolve()),
+        "contract_sha256": file_sha256(contract_path),
         "recorded_at": utc_now(),
     }
-    _contract(mode)["verdict"] = verdict
+    _contract(mode)["verdict"] = contract_data.get("verdict")
 
 
 def _assert_g5_gate_ready(mode: dict[str, Any]) -> None:
     path = review_path(mode)
     if not path.exists():
         raise StateError("06-review.md is missing")
-    text = path.read_text(encoding="utf-8")
     _record_review_evidence(mode)
-    errors = review_gate_errors(mode, text)
+    errors = review_gate_errors(mode)
     if errors:
         raise StateError("G5 review gate blocked: " + "; ".join(errors))
 
@@ -566,7 +599,7 @@ def _archive_repair_artifacts(mode: dict[str, Any], iteration: int) -> dict[str,
     archive_dir = Path(mode["run_dir"]) / "evidence" / f"g5-repair-{iteration:03d}"
     archive_dir.mkdir(parents=True, exist_ok=True)
     artifacts: dict[str, Any] = {}
-    for name in ["05-execution.md", "06-review.md"]:
+    for name in ["05-execution.md", "06-review.md", REVIEW_CONTRACT]:
         source = _path_in_run(mode, name)
         record: dict[str, Any] = {"source": str(source.resolve()), "exists": source.exists()}
         if source.exists() and source.is_file():
@@ -655,6 +688,7 @@ def _return_to_g4_repair(ws: Workspace, mode: dict[str, Any], verdict: str, note
         "next_event": "G4.START",
         "archive": archive["path"],
         "review": str(review_path(mode).resolve()),
+        "review_contract": str(review_contract_path(mode).resolve()),
     }
 
 
@@ -743,6 +777,7 @@ def advance_g5(ws: Workspace, note: str = "") -> dict[str, Any]:
             "next_global_event": "G6",
             "next_event": next_id,
             "review": str(review_path(mode).resolve()),
+            "review_contract": str(review_contract_path(mode).resolve()),
         }
 
     else:
@@ -756,6 +791,7 @@ def advance_g5(ws: Workspace, note: str = "") -> dict[str, Any]:
         "status": "done",
         "next_event": next_event.get("id") if next_event else None,
         "review": str(review_path(mode).resolve()),
+        "review_contract": str(review_contract_path(mode).resolve()),
     }
 
 
@@ -853,8 +889,14 @@ def apply_g5_hook_trace_signal(
         else:
             _ensure_designer_required(mode)
             scope = "participate in UI quality gate against Pencil and G3/G4 UI contracts"
-        call_id = agent_id.strip() or f"{agent_name}-local"
-        _record_agent_call(mode, event_id, agent_name, call_id, "spawned", scope)
+        call_id = _record_agent_call(
+            mode,
+            event_id,
+            agent_name,
+            agent_id.strip() or f"{agent_name}-local",
+            "spawned",
+            scope,
+        )
         _trace_g5_hook(mode, f"{event_id}.spawn_record", f"agent_id={call_id}", event_id, f"record {agent_name} spawn", {"agent": agent_name, "agent_id": call_id, **agent_spawn_contract(agent_name)})
         _trace_g5_hook_once(mode, f"{event_id}.wait_result", f"waiting for {agent_name} result", event_id, f"wait for {agent_name} result")
         _set_orchestrator(
@@ -930,6 +972,7 @@ def _g5_trace_result(mode: dict[str, Any], before_index: int, advanced: list[dic
         "orchestrator": _orchestrator_state(mode),
         "inspector": _inspector_state(mode),
         "review": str(review_path(mode).resolve()),
+        "review_contract": str(review_contract_path(mode).resolve()),
     }
 
 
@@ -952,4 +995,5 @@ def g5_status(ws: Workspace) -> dict[str, Any]:
         "orchestrator": _orchestrator_state(mode),
         "inspector": _inspector_state(mode),
         "review": str(review_path(mode).resolve()),
+        "review_contract": str(review_contract_path(mode).resolve()),
     }

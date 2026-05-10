@@ -11,8 +11,8 @@ The runtime is source-of-truth driven:
 - no UI implementation without a validated Pencil frame inventory and feature-to-UI map;
 - no G4 completion without TDD RED/GREEN evidence or an explicit deferred/blocked decision;
 - no UI work item without pre-implementation G3 UI guidance;
-- no G5/G6 pass-through after BLOCK, FAIL, or INCOMPLETE; the run returns to G4 repair;
-- no G7 finish without verifier PASS, inspector report, finish handoff, and retrospective;
+- no G5/G6 pass-through without `review-contract.json` / `verification-contract.json`; after BLOCK, FAIL, or INCOMPLETE the run returns to G4 repair;
+- no G7 finish without verifier PASS in `verification-contract.json`, `inspector-audit.json`, `finish-contract.json`, finish handoff, and retrospective;
 - no nested SuperTeam run inside an active `mode.json.event_tree`.
 
 ## Layout
@@ -68,7 +68,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref main
 For a pinned release:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.2
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.5
 ```
 
 The GitHub installer clones or updates the repository under the user's Codex

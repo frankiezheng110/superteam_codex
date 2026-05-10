@@ -12,7 +12,7 @@ from .event_tree import (
     render_event_tree_markdown,
     transition_to_phase,
 )
-from .agent_registry import agent_spawn_contract, require_superteam_agent
+from .agent_registry import agent_reuse_hook_instruction, agent_spawn_contract, register_agent_call, require_superteam_agent
 from .state import (
     G1_QUESTIONS,
     G1_TERMINAL_STATUSES,
@@ -22,13 +22,15 @@ from .state import (
     save_mode,
     validate_mode,
 )
-from .workspace import Workspace, utc_now, write_text
+from .workspace import Workspace, utc_now, write_json, write_text
 
 
 ANSWER_STATUSES = G1_TERMINAL_STATUSES
 G1_SUMMARY_AGENT = require_superteam_agent("prd-writer", context="G1.SUMMARY")
 INSPECTOR_AGENT = "inspector"
 G1_USER_GATE_PREFIX = "G1.Q"
+PROJECT_DEFINITION = "01-project-definition.md"
+PROJECT_DEFINITION_CONTRACT = "project-definition.json"
 
 
 def _hook_trace(mode: dict[str, Any]) -> list[dict[str, Any]]:
@@ -116,7 +118,7 @@ def _set_orchestrator(
     state["spawn_status"] = spawn_status
     state["expected_agent"] = expected_agent
     state["expected_agent_definition"] = agent_spawn_contract(expected_agent) if expected_agent else None
-    state["hook_instruction"] = instruction
+    state["hook_instruction"] = agent_reuse_hook_instruction(expected_agent, instruction) if expected_agent else instruction
 
 
 def _set_inspector(
@@ -152,23 +154,9 @@ def _record_agent_call(
     agent_id: str,
     status: str,
     scope: str,
-) -> None:
-    state = _orchestrator_state(mode)
-    calls = state.setdefault("agent_calls", [])
-    if not isinstance(calls, list):
-        calls = []
-        state["agent_calls"] = calls
-    calls.append(
-        {
-            "ts": utc_now(),
-            "event": event_id,
-            "role": agent,
-            "agent_id": agent_id,
-            "scope": scope,
-            "status": status,
-            **agent_spawn_contract(agent),
-        }
-    )
+) -> str:
+    call = register_agent_call(mode, event_id, agent, agent_id, status, scope)
+    return str(call.get("agent_id") or "")
 
 
 def _has_agent_call(mode: dict[str, Any], event_id: str, agent: str) -> bool:
@@ -216,8 +204,14 @@ def _require_inspector(mode: dict[str, Any], event_id: str, instruction: str) ->
 
 
 def _record_inspector_spawn(mode: dict[str, Any], event_id: str, agent_id: str) -> None:
-    call_id = agent_id.strip() or f"{INSPECTOR_AGENT}-local"
-    _record_agent_call(mode, event_id, INSPECTOR_AGENT, call_id, "spawned", f"inspect {event_id} trace before advance")
+    call_id = _record_agent_call(
+        mode,
+        event_id,
+        INSPECTOR_AGENT,
+        agent_id.strip() or f"{INSPECTOR_AGENT}-local",
+        "spawned",
+        f"inspect {event_id} trace before advance",
+    )
     _trace_g1_hook(
         mode,
         f"{event_id}.inspector_spawn_record",
@@ -349,7 +343,11 @@ def _ensure_g1_summary_spawn_required(mode: dict[str, Any]) -> None:
 
 
 def project_definition_path(mode: dict[str, Any]) -> Path:
-    return Path(mode["run_dir"]) / "01-project-definition.md"
+    return Path(mode["run_dir"]) / PROJECT_DEFINITION
+
+
+def project_definition_contract_path(mode: dict[str, Any]) -> Path:
+    return Path(mode["run_dir"]) / PROJECT_DEFINITION_CONTRACT
 
 
 def _events(mode: dict[str, Any]) -> list[dict[str, Any]]:
@@ -372,6 +370,34 @@ def _active_event(mode: dict[str, Any]) -> dict[str, Any]:
 
 def _answer_for(mode: dict[str, Any], event_id: str) -> str:
     return str(_event(mode, event_id).get("answer") or "").strip()
+
+
+def _project_definition_contract(mode: dict[str, Any]) -> dict[str, Any]:
+    approval = mode.get("g1_approval")
+    status = "approved" if isinstance(approval, dict) and approval.get("status") == "approved" else "draft"
+    answers: list[dict[str, Any]] = []
+    for event_id, question in G1_QUESTIONS:
+        answer = _answer_for(mode, event_id)
+        answers.append(
+            {
+                "event_id": event_id,
+                "question": question,
+                "status": "answered" if answer else "missing",
+                "answer": answer,
+                "answer_ref": f"{PROJECT_DEFINITION_CONTRACT}#answers.{event_id}",
+            }
+        )
+    return {
+        "schema": "superteam_codex.project_definition.v1",
+        "run_id": str(mode.get("run_id") or ""),
+        "task": str(mode.get("task") or "").strip(),
+        "status": status,
+        "answers": answers,
+        "approval": approval if isinstance(approval, dict) else None,
+        "event_tree_ref": "mode.json:event_tree",
+        "markdown_ref": PROJECT_DEFINITION,
+        "generated_at": utc_now(),
+    }
 
 
 def _render_project_definition(mode: dict[str, Any]) -> str:
@@ -447,6 +473,7 @@ def _render_project_definition(mode: dict[str, Any]) -> str:
 
 def write_project_definition(mode: dict[str, Any]) -> Path:
     path = project_definition_path(mode)
+    write_json(project_definition_contract_path(mode), _project_definition_contract(mode))
     write_text(path, _render_project_definition(mode))
     return path
 
@@ -469,6 +496,7 @@ def g1_status(ws: Workspace) -> dict[str, Any]:
         "orchestrator": _orchestrator_state(mode),
         "inspector": _inspector_state(mode),
         "project_definition": str(project_definition_path(mode).resolve()),
+        "project_definition_contract": str(project_definition_contract_path(mode).resolve()),
     }
 
 
@@ -534,7 +562,7 @@ def apply_g1_hook_trace_signal(
             raise StateError(f"answer status must be one of {sorted(ANSWER_STATUSES)}")
         _ensure_g1_user_gate_waiting(mode, event_id)
         current["answer"] = answer
-        current["answer_ref"] = f"01-project-definition.md#{event_id.lower().replace('.', '')}"
+        current["answer_ref"] = f"{PROJECT_DEFINITION_CONTRACT}#answers.{event_id}"
         _trace_g1_hook(mode, f"{event_id}.record", answer, event_id, "record active G1 answer")
         try:
             next_event = mark_active_event_terminal(mode, event_id, status)
@@ -559,8 +587,14 @@ def apply_g1_hook_trace_signal(
         if agent_name != G1_SUMMARY_AGENT:
             raise StateError(f"G1.SUMMARY requires agent {G1_SUMMARY_AGENT}, got {agent_name}")
         _ensure_g1_summary_spawn_required(mode)
-        call_id = agent_id.strip() or f"{agent_name}-local"
-        _record_agent_call(mode, event_id, agent_name, call_id, "spawned", "synthesize G1 project definition")
+        call_id = _record_agent_call(
+            mode,
+            event_id,
+            agent_name,
+            agent_id.strip() or f"{agent_name}-local",
+            "spawned",
+            "synthesize G1 project definition",
+        )
         _trace_g1_hook(
             mode,
             "G1.SUMMARY.spawn_record",
@@ -711,6 +745,7 @@ def _g1_trace_result(mode: dict[str, Any], before_index: int) -> dict[str, Any]:
         "orchestrator": _orchestrator_state(mode),
         "inspector": _inspector_state(mode),
         "project_definition": str(project_definition_path(mode).resolve()),
+        "project_definition_contract": str(project_definition_contract_path(mode).resolve()),
     }
 
 
@@ -736,7 +771,7 @@ def record_g1_answer(ws: Workspace, answer: str, status: str = "done") -> dict[s
     if not current_id.startswith("G1.Q"):
         raise StateError(f"active G1 event is {current_id}; use the matching G1 command instead")
     current["answer"] = answer
-    current["answer_ref"] = f"01-project-definition.md#{current_id.lower().replace('.', '')}"
+    current["answer_ref"] = f"{PROJECT_DEFINITION_CONTRACT}#answers.{current_id}"
     try:
         mark_active_event_terminal(mode, current_id, status)
     except ValueError as exc:
@@ -751,6 +786,7 @@ def record_g1_answer(ws: Workspace, answer: str, status: str = "done") -> dict[s
         "status": status,
         "next_event": next_event.get("id") if next_event else None,
         "project_definition": str(path.resolve()),
+        "project_definition_contract": str(project_definition_contract_path(mode).resolve()),
     }
 
 
@@ -784,6 +820,7 @@ def complete_g1_summary(ws: Workspace) -> dict[str, Any]:
         "status": "done",
         "next_event": next_event.get("id") if next_event else None,
         "project_definition": str(path.resolve()),
+        "project_definition_contract": str(project_definition_contract_path(mode).resolve()),
     }
 
 
@@ -803,7 +840,7 @@ def approve_g1(ws: Workspace, approved_by: str = "user", note: str = "") -> dict
     if current.get("id") != "G1.APPROVAL":
         raise StateError(f"active G1 event is {current.get('id')}; cannot approve G1")
     now = utc_now()
-    current["answer_ref"] = "01-project-definition.md#approval"
+    current["answer_ref"] = f"{PROJECT_DEFINITION_CONTRACT}#approval"
     current["approved_at"] = now
     try:
         mark_active_event_terminal(mode, "G1.APPROVAL", "done")
@@ -832,4 +869,5 @@ def approve_g1(ws: Workspace, approved_by: str = "user", note: str = "") -> dict
         "next_global_event": "G2",
         "next_event": active_event(mode, "G2").get("id") if active_event(mode, "G2") else None,
         "project_definition": str(path.resolve()),
+        "project_definition_contract": str(project_definition_contract_path(mode).resolve()),
     }

@@ -18,9 +18,12 @@ UI_HINTS = (
     "设计",
     "帧",
 )
-BACKTICK_TOKEN_RE = re.compile(r"`([A-Za-z][A-Za-z0-9_-]{3,11})`")
 FRAME_REF_RE = re.compile(
-    r"\b(?:pencil\s+frame|frame|frame_id|frame-id|id)\s*[:=]?\s*`?([A-Za-z][A-Za-z0-9_-]{3,11})`?",
+    r"\b(?:"
+    r"(?:pencil\s+frame|frame)\s+(?:is\s+)?`([A-Za-z][A-Za-z0-9_-]{3,31})`|"
+    r"(?:pencil\s+frame|frame)\s*(?:[:=#]|->)\s*`?([A-Za-z][A-Za-z0-9_-]{3,31})`?|"
+    r"(?:frame_id|frame-id|id)\s*[:=]\s*`?([A-Za-z][A-Za-z0-9_-]{3,31})`?"
+    r")",
     re.IGNORECASE,
 )
 COMMON_FALSE_TOKENS = {
@@ -37,7 +40,19 @@ COMMON_FALSE_TOKENS = {
     "Design",
     "Feature",
     "Screen",
+    "NO_UI",
+    "event_tree",
+    "g2_contract",
+    "frame_inventory",
+    "feature_ui_map",
 }
+
+
+def _frame_reference_candidates(line: str) -> set[str]:
+    candidates: set[str] = set()
+    for match in FRAME_REF_RE.finditer(line):
+        candidates.update(value for value in match.groups() if value)
+    return candidates
 
 
 def _read_lines(path: Path) -> list[str]:
@@ -70,7 +85,7 @@ def build_feature_ui_map(manifest: dict, inventory: dict) -> dict:
                     )
             if not any(hint in lower for hint in UI_HINTS):
                 continue
-            candidates = set(BACKTICK_TOKEN_RE.findall(line)) | set(FRAME_REF_RE.findall(line))
+            candidates = _frame_reference_candidates(line)
             for token in candidates:
                 if token in COMMON_FALSE_TOKENS or token in frame_ids:
                     continue

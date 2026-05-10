@@ -265,7 +265,7 @@ class HookTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertIn("state=PENDING", message)
-        self.assertIn("G3 UI frames=frame-login", message)
+        self.assertIn("G2 UI frames=frame-login", message)
         self.assertIn("ui-layout-spec.json#frames.frame-login", message)
 
         mode = load_mode(ws)

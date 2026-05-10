@@ -15,6 +15,14 @@ python "<plugin-root>\superteam_codex\cli.py" --project "<project-root>" g6-trac
 python "<plugin-root>\superteam_codex\cli.py" --project "<project-root>" g6-trace --signal agent-result --agent verifier "<PASS|FAIL|INCOMPLETE note>"
 ```
 
+Agent definition rule: before calling `verifier`, read
+`mode.json.agent_roster.roles.verifier` and treat its definition path plus
+`rules_sha256` as the identity. Inspect `mode.json.agent_slots`; if the
+verifier slot already has an `agent_id`, continue that same agent with
+`send_input` and record the existing id. FAIL or INCOMPLETE repair cycles reuse
+the same verifier role slot.
+
 G6 owns fresh verification. Do not trust G4 or G5 notes without rerunning the
 relevant tests, build checks, API checks, and UI evidence checks. Only PASS can
-enter G7. FAIL or INCOMPLETE returns to G4 repair and repeats G4-G5-G6.
+enter G7, and the verdict must be recorded in `verification-contract.json`.
+FAIL or INCOMPLETE returns to G4 repair and repeats G4-G5-G6.

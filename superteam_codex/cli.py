@@ -49,6 +49,7 @@ if __package__ in {None, ""}:
     from superteam_codex.runtime.stages import (
         StageError,
         rebuild_active_map,
+        refresh_active_event_tree,
         reset_workspace,
         start_run,
         status_summary,
@@ -98,6 +99,7 @@ else:
     from .runtime.stages import (
         StageError,
         rebuild_active_map,
+        refresh_active_event_tree,
         reset_workspace,
         start_run,
         status_summary,
@@ -129,6 +131,11 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_map(args: argparse.Namespace) -> int:
     _print(rebuild_active_map(_workspace(args)))
+    return 0
+
+
+def cmd_repair_event_tree(args: argparse.Namespace) -> int:
+    _print(refresh_active_event_tree(_workspace(args)))
     return 0
 
 
@@ -455,6 +462,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     map_cmd = sub.add_parser("map", help="Rebuild source manifest, frame inventory, and feature UI map.")
     map_cmd.set_defaults(func=cmd_map)
+
+    repair_event_tree = sub.add_parser("repair-event-tree", help="Refresh legacy event_tree to the current hook-trace schema.")
+    repair_event_tree.set_defaults(func=cmd_repair_event_tree)
 
     g1_status_cmd = sub.add_parser("g1-status", help="Show the G1 event table.")
     g1_status_cmd.set_defaults(func=cmd_g1_status)

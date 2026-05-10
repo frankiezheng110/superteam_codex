@@ -3,17 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .event_tree import active_event, blocked_event, refresh_event_tree_schema
 from .feature_ui_map import build_feature_ui_map, write_feature_ui_map
 from .frame_inventory import build_frame_inventory, write_frame_inventory
 from .g1 import write_project_definition
 from .source_pack import discover_source_pack, write_manifest
-from .state import create_mode, create_or_update_project, load_mode, save_mode, validate_mode
+from .state import create_mode, create_or_update_project, ensure_mode_runtime_defaults, load_mode, save_mode, validate_mode
 from .workspace import Workspace, detect_version_dirs, safe_slug, utc_now, write_text
 
 
 ARTIFACTS = {
     "02-design.md": "# G2 Design\n\nStatus: pending\n\n## Source Review\n\n- Source pack must be reviewed before implementation.\n- UI-bearing features must map to Pencil frames.\n",
-    "04-plan.md": "# G3 Execution Plan\n\nStatus: pending\n\n## Structured Authorities\n\n- `ui-code-map.json` maps Pencil frames to code targets.\n- `ui-layout-spec.json` records Pencil layout structure.\n- `design-tokens.json` records extractable visual tokens.\n- `interaction-state-map.json` records required UI states.\n- `visual-acceptance.json` defines screenshot/layout acceptance checks.\n- `implementation-plan.json` defines G4 work items.\n\n## Required Plan Fields\n\nEach task must cite source files, frame ids or `NO_UI`, changed files, acceptance checks, and evidence commands.\n",
+    "04-plan.md": "# G3 Execution Plan\n\nStatus: pending\n\n## Structured Authorities\n\n- G2 provides `ui-code-map.json`, `ui-layout-spec.json`, `design-tokens.json`, `interaction-state-map.json`, `visual-acceptance.json`, `pencil-contract-map.json`, and reference screenshots as design authorities.\n- G3 consumes those G2 authorities to produce `implementation-plan.json` and work items.\n\n## Required Plan Fields\n\nEach task must cite source files, frame ids or `NO_UI`, changed files, contract refs, screenshot/report evidence refs, acceptance checks, and evidence commands.\n",
     "05-execution.md": "# Execute\n\nStatus: pending\n\n## Evidence\n\nRecord changed files, source references, frame references, and verification commands here.\n",
     "06-review.md": "# Review\n\nStatus: pending\n\n## Review Gate\n\nReview must challenge source consumption, UI fidelity, behavior coverage, and tests.\n",
     "07-verification.md": "# Verification\n\nStatus: pending\n\n## Verification Gate\n\nVerification must run fresh checks and compare output to the feature UI map.\n",
@@ -134,6 +135,48 @@ def status_summary(ws: Workspace) -> dict[str, Any]:
         "project_root": str(ws.root),
         "active": mode.get("mode") == "active",
         "errors": errors,
+        "mode": mode,
+    }
+
+
+def refresh_active_event_tree(ws: Workspace) -> dict[str, Any]:
+    mode = load_mode(ws)
+    if not isinstance(mode, dict):
+        raise StageError("mode.json is missing or is not an object")
+    before_errors = validate_mode(mode)
+    before_ids = [item.get("id") for item in mode.get("event_tree", []) if isinstance(item, dict)]
+    refresh_event_tree_schema(mode)
+    ensure_mode_runtime_defaults(mode)
+    current_event = active_event(mode) or blocked_event(mode)
+    if isinstance(mode.get("orchestrator"), dict):
+        mode["orchestrator"]["active_event"] = current_event.get("id") if current_event else None
+        mode["orchestrator"].setdefault("hook_instruction", "continue current SuperTeam Codex event")
+    if mode.get("stage") in {"g2", "g3", "execute", "review", "verify", "finish"}:
+        write_project_definition(mode)
+    after_errors = validate_mode(mode)
+    if after_errors:
+        raise StageError("event_tree schema refresh did not produce a valid mode: " + "; ".join(after_errors))
+    after_ids = [item.get("id") for item in mode.get("event_tree", []) if isinstance(item, dict)]
+    mode.setdefault("hook_trace", []).append(
+        {
+            "ts": utc_now(),
+            "hook": "EVENT_TREE_SCHEMA_REFRESH",
+            "trigger": "manual schema refresh",
+            "stage": mode.get("stage"),
+            "node": current_event.get("id") if current_event else None,
+            "active_leaf_event": current_event.get("id") if current_event else None,
+            "soft_constraint": "refresh legacy event tree to current hook-trace contract schema",
+            "instruction": "preserve run state while replacing legacy text-only workflow events with current hook-trace events",
+        }
+    )
+    save_mode(ws, mode)
+    return {
+        "ok": True,
+        "project_root": str(ws.root),
+        "before_errors": before_errors,
+        "after_errors": after_errors,
+        "removed_events": sorted(str(event_id) for event_id in set(before_ids) - set(after_ids) if event_id),
+        "added_events": sorted(str(event_id) for event_id in set(after_ids) - set(before_ids) if event_id),
         "mode": mode,
     }
 

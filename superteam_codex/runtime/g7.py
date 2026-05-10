@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
-from .agent_registry import agent_spawn_contract, require_superteam_agent
+from .agent_registry import agent_reuse_hook_instruction, agent_spawn_contract, register_agent_call, require_superteam_agent
 from .event_tree import (
     G7_EVENT_IDS,
     active_event,
@@ -20,14 +19,19 @@ from .workspace import Workspace, file_sha256, read_json, utc_now, write_json
 
 INSPECTOR_AGENT = require_superteam_agent("inspector", context="G7.SPAWN_INSPECTOR")
 WRITER_AGENT = require_superteam_agent("writer", context="G7.SPAWN_WRITER")
+INSPECTOR_AUDIT = "inspector-audit.json"
+FINISH_CONTRACT = "finish-contract.json"
 
 FINISH_INPUT_FILES = [
+    "project-definition.json",
     "01-project-definition.md",
     "02-design.md",
     "04-plan.md",
     "05-execution.md",
     "06-review.md",
+    "review-contract.json",
     "07-verification.md",
+    "verification-contract.json",
     "implementation-plan.json",
     "ui-code-map.json",
     "visual-acceptance.json",
@@ -90,6 +94,14 @@ def retrospective_path(mode: dict[str, Any]) -> Path:
 def inspector_report_path(mode: dict[str, Any]) -> Path:
     slug = str(mode.get("active_task_slug") or "run")
     return Path(mode["project_root"]) / ".superteam_codex" / "inspector" / "reports" / f"{slug}-report.md"
+
+
+def inspector_audit_path(mode: dict[str, Any]) -> Path:
+    return _path_in_run(mode, INSPECTOR_AUDIT)
+
+
+def finish_contract_path(mode: dict[str, Any]) -> Path:
+    return _path_in_run(mode, FINISH_CONTRACT)
 
 
 def _contract(mode: dict[str, Any]) -> dict[str, Any]:
@@ -188,7 +200,7 @@ def _set_orchestrator(
     state["spawn_status"] = spawn_status
     state["expected_agent"] = expected_agent
     state["expected_agent_definition"] = agent_spawn_contract(expected_agent) if expected_agent else None
-    state["hook_instruction"] = instruction
+    state["hook_instruction"] = agent_reuse_hook_instruction(expected_agent, instruction) if expected_agent else instruction
 
 
 def _set_inspector_state(mode: dict[str, Any], event_id: str, *, status: str, checkpoint_required: bool) -> None:
@@ -207,22 +219,9 @@ def _record_agent_call(
     agent_id: str,
     status: str,
     scope: str,
-) -> None:
-    calls = _orchestrator_state(mode).setdefault("agent_calls", [])
-    if not isinstance(calls, list):
-        calls = []
-        _orchestrator_state(mode)["agent_calls"] = calls
-    calls.append(
-        {
-            "ts": utc_now(),
-            "event": event_id,
-            "role": agent,
-            "agent_id": agent_id,
-            "scope": scope,
-            "status": status,
-            **agent_spawn_contract(agent),
-        }
-    )
+) -> str:
+    call = register_agent_call(mode, event_id, agent, agent_id, status, scope)
+    return str(call.get("agent_id") or "")
 
 
 def _has_agent_call(mode: dict[str, Any], event_id: str, agent: str, *, status: str | None = None) -> bool:
@@ -286,27 +285,32 @@ def _artifact_record(mode: dict[str, Any], name: str) -> dict[str, Any]:
 def _collect_finish_inputs(mode: dict[str, Any]) -> list[dict[str, Any]]:
     inputs = [_artifact_record(mode, name) for name in FINISH_INPUT_FILES]
     report = inspector_report_path(mode)
-    inputs.append(
-        {
-            "name": "inspector-report.md",
-            "path": str(report.resolve()),
-            "exists": report.exists(),
-            **({"sha256": file_sha256(report)} if report.exists() and report.is_file() else {}),
-        }
-    )
+    for name, path in [
+        ("inspector-report.md", report),
+        (INSPECTOR_AUDIT, inspector_audit_path(mode)),
+        (FINISH_CONTRACT, finish_contract_path(mode)),
+    ]:
+        inputs.append(
+            {
+                "name": name,
+                "path": str(path.resolve()),
+                "exists": path.exists(),
+                **({"sha256": file_sha256(path)} if path.exists() and path.is_file() else {}),
+            }
+        )
     return inputs
-
-
-def _verification_text(mode: dict[str, Any]) -> str:
-    path = _path_in_run(mode, "07-verification.md")
-    return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
 def _verification_pass(mode: dict[str, Any]) -> bool:
     contract = mode.get("g6_contract") if isinstance(mode.get("g6_contract"), dict) else {}
-    if contract.get("verdict") == "PASS" and contract.get("status") == "done":
-        return True
-    return bool(re.search(r"(?im)^\s*(?:verdict|status)\s*:\s*PASS\b", _verification_text(mode)))
+    verification_contract = read_json(_path_in_run(mode, "verification-contract.json"), {})
+    return (
+        contract.get("verdict") == "PASS"
+        and contract.get("status") == "done"
+        and isinstance(verification_contract, dict)
+        and verification_contract.get("schema") == "superteam_codex.verification_contract.v1"
+        and verification_contract.get("verdict") == "PASS"
+    )
 
 
 def _trace_finish_inputs_guidance(mode: dict[str, Any], event_id: str) -> None:
@@ -329,7 +333,15 @@ def _trace_finish_inputs_guidance(mode: dict[str, Any], event_id: str) -> None:
         "stage=finish",
         event_id,
         "guide G7 agents to limit work to inspector report, finish summary, and retrospective artifacts",
-        {"allowed_outputs": [str(inspector_report_path(mode).resolve()), str(finish_path(mode).resolve()), str(retrospective_path(mode).resolve())]},
+        {
+            "allowed_outputs": [
+                str(inspector_report_path(mode).resolve()),
+                str(inspector_audit_path(mode).resolve()),
+                str(finish_path(mode).resolve()),
+                str(retrospective_path(mode).resolve()),
+                str(finish_contract_path(mode).resolve()),
+            ]
+        },
     )
 
 
@@ -344,16 +356,16 @@ def _ensure_inspector_required(mode: dict[str, Any]) -> None:
         event_id,
         (
             "guide inspector before audit: inspect hook_trace coverage, event_tree order, agent role boundaries, "
-            "G1-G6 artifacts, bypasses, and process risks; inspector audits process, not product implementation"
+            f"G1-G6 artifacts, bypasses, and process risks; write {INSPECTOR_AUDIT}; inspector audits process, not product implementation"
         ),
-        {"expected_report": str(inspector_report_path(mode).resolve())},
+        {"expected_report": str(inspector_report_path(mode).resolve()), "expected_audit": str(inspector_audit_path(mode).resolve())},
     )
     _trace_g7_hook_once(
         mode,
         f"{event_id}.spawn_required",
         f"expected_agent={INSPECTOR_AGENT}",
         event_id,
-        "spawn inspector for SuperTeam process audit before writer handoff",
+        f"spawn inspector for SuperTeam process audit before writer handoff and require {INSPECTOR_AUDIT}",
         {"expected_agent": INSPECTOR_AGENT, **agent_spawn_contract(INSPECTOR_AGENT)},
     )
     _set_orchestrator(
@@ -362,7 +374,7 @@ def _ensure_inspector_required(mode: dict[str, Any]) -> None:
         spawn_decision="required",
         spawn_status="pending",
         expected_agent=INSPECTOR_AGENT,
-        instruction="spawn inspector; provide full hook_trace, event_tree, G1-G6 artifacts, and original SuperTeam inspector rules",
+        instruction=f"spawn inspector; provide full hook_trace, event_tree, G1-G6 artifacts, require {INSPECTOR_AUDIT}, and original SuperTeam inspector rules",
     )
     _set_inspector_state(mode, event_id, status="waiting_for_spawn_record", checkpoint_required=True)
 
@@ -378,13 +390,16 @@ def _ensure_writer_required(mode: dict[str, Any]) -> None:
         event_id,
         (
             "guide writer before handoff: summarize delivered scope, verifier PASS evidence, inspector report, "
-            "review concerns, residual risks, and write retrospective with improvement_action"
+            f"review concerns, residual risks, write {FINISH_CONTRACT}, and write retrospective with improvement_action"
         ),
         {
             "verification": str(_path_in_run(mode, "07-verification.md").resolve()),
+            "verification_contract": str(_path_in_run(mode, "verification-contract.json").resolve()),
             "inspector_report": str(inspector_report_path(mode).resolve()),
+            "inspector_audit": str(inspector_audit_path(mode).resolve()),
             "finish": str(finish_path(mode).resolve()),
             "retrospective": str(retrospective_path(mode).resolve()),
+            "finish_contract": str(finish_contract_path(mode).resolve()),
         },
     )
     _trace_g7_hook_once(
@@ -392,7 +407,7 @@ def _ensure_writer_required(mode: dict[str, Any]) -> None:
         f"{event_id}.spawn_required",
         f"expected_agent={WRITER_AGENT}",
         event_id,
-        "spawn writer to produce finish and retrospective artifacts after inspector report exists",
+        f"spawn writer to produce finish artifacts and {FINISH_CONTRACT} after inspector report/audit exists",
         {"expected_agent": WRITER_AGENT, **agent_spawn_contract(WRITER_AGENT)},
     )
     _set_orchestrator(
@@ -401,18 +416,76 @@ def _ensure_writer_required(mode: dict[str, Any]) -> None:
         spawn_decision="required",
         spawn_status="pending",
         expected_agent=WRITER_AGENT,
-        instruction="spawn writer; provide verifier PASS, inspector report, and finish artifact requirements",
+        instruction=f"spawn writer; provide verifier PASS, inspector report/audit, and require {FINISH_CONTRACT}",
     )
     _set_inspector_state(mode, event_id, status="not_required", checkpoint_required=False)
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    data = read_json(path, {})
+    return data if isinstance(data, dict) else {}
+
+
+def _status_pass(value: Any) -> bool:
+    if isinstance(value, dict):
+        return str(value.get("status") or "").strip().lower() in {"pass", "passed", "ok", "clear", "complete"}
+    return False
+
+
+def _inspector_audit_errors(mode: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    path = inspector_audit_path(mode)
+    audit = _load_json(path)
+    if not path.exists():
+        errors.append(f"{INSPECTOR_AUDIT} is missing")
+        return errors
+    if audit.get("schema") != "superteam_codex.inspector_audit.v1":
+        errors.append(f"{INSPECTOR_AUDIT} schema must be superteam_codex.inspector_audit.v1")
+    if str(audit.get("status") or "").strip().lower() not in {"pass", "passed", "ok", "clear"}:
+        errors.append(f"{INSPECTOR_AUDIT} status must pass")
+    for key in ["process_audit", "hook_trace_coverage", "event_tree_audit", "agent_boundary_audit"]:
+        if not _status_pass(audit.get(key)):
+            errors.append(f"{INSPECTOR_AUDIT} {key}.status must pass")
+    if audit.get("no_product_code_changes") is not True:
+        errors.append(f"{INSPECTOR_AUDIT} no_product_code_changes must be true")
+    return errors
+
+
+def _finish_contract_errors(mode: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    path = finish_contract_path(mode)
+    contract = _load_json(path)
+    if not path.exists():
+        errors.append(f"{FINISH_CONTRACT} is missing")
+        return errors
+    if contract.get("schema") != "superteam_codex.finish_contract.v1":
+        errors.append(f"{FINISH_CONTRACT} schema must be superteam_codex.finish_contract.v1")
+    if str(contract.get("status") or "").strip().lower() not in {"complete", "completed", "pass", "ok"}:
+        errors.append(f"{FINISH_CONTRACT} status must be complete")
+    if contract.get("verifier_pass_acknowledged") is not True:
+        errors.append(f"{FINISH_CONTRACT} verifier_pass_acknowledged must be true")
+    if contract.get("inspector_audit_acknowledged") is not True:
+        errors.append(f"{FINISH_CONTRACT} inspector_audit_acknowledged must be true")
+    if contract.get("no_product_code_changes") is not True:
+        errors.append(f"{FINISH_CONTRACT} no_product_code_changes must be true")
+    if not str(contract.get("improvement_action") or "").strip():
+        errors.append(f"{FINISH_CONTRACT} improvement_action must be non-empty")
+    return errors
 
 
 def _record_inspector_report(mode: dict[str, Any]) -> None:
     path = inspector_report_path(mode)
     if not path.exists():
         raise StateError(f"inspector report is missing: {path.resolve()}")
+    audit_path = inspector_audit_path(mode)
+    audit_errors = _inspector_audit_errors(mode)
+    if audit_errors:
+        raise StateError("inspector-audit.json is invalid: " + "; ".join(audit_errors))
     _contract(mode)["inspector_report"] = {
         "path": str(path.resolve()),
         "sha256": file_sha256(path),
+        "audit_path": str(audit_path.resolve()),
+        "audit_sha256": file_sha256(audit_path),
         "recorded_at": utc_now(),
     }
 
@@ -430,6 +503,15 @@ def _record_finish_artifacts(mode: dict[str, Any]) -> None:
             "sha256": file_sha256(path),
             "recorded_at": utc_now(),
         }
+    contract_path = finish_contract_path(mode)
+    contract_errors = _finish_contract_errors(mode)
+    if contract_errors:
+        raise StateError("finish-contract.json is invalid: " + "; ".join(contract_errors))
+    artifacts["finish_contract"] = {
+        "path": str(contract_path.resolve()),
+        "sha256": file_sha256(contract_path),
+        "recorded_at": utc_now(),
+    }
     _contract(mode)["finish_artifacts"] = artifacts
 
 
@@ -446,14 +528,8 @@ def finish_gate_errors(mode: dict[str, Any]) -> list[str]:
         errors.append("08-finish.md is missing")
     if not retro.exists():
         errors.append("retrospective.md is missing")
-    finish_text = finish.read_text(encoding="utf-8") if finish.exists() else ""
-    retro_text = retro.read_text(encoding="utf-8") if retro.exists() else ""
-    if finish_text and not re.search(r"(?is)\bverifier\b.*\bPASS\b|\bPASS\b.*\bverifier\b", finish_text):
-        errors.append("08-finish.md must acknowledge verifier PASS")
-    if finish_text and not re.search(r"(?is)\binspector\b.*\b(report|acknowledged|acknowledgement)\b|inspector_report_acknowledged\s*:\s*true", finish_text):
-        errors.append("08-finish.md must acknowledge inspector report")
-    if retro_text and not re.search(r"(?im)^\s*improvement_action\s*:\s*\S+", retro_text):
-        errors.append("retrospective.md must contain non-empty improvement_action")
+    errors.extend(_inspector_audit_errors(mode))
+    errors.extend(_finish_contract_errors(mode))
     return errors
 
 
@@ -559,6 +635,8 @@ def advance_g7(ws: Workspace, note: str = "") -> dict[str, Any]:
             "finish": str(finish_path(mode).resolve()),
             "retrospective": str(retrospective_path(mode).resolve()),
             "inspector_report": str(inspector_report_path(mode).resolve()),
+            "inspector_audit": str(inspector_audit_path(mode).resolve()),
+            "finish_contract": str(finish_contract_path(mode).resolve()),
         }
 
     else:
@@ -572,6 +650,7 @@ def advance_g7(ws: Workspace, note: str = "") -> dict[str, Any]:
         "status": "done",
         "next_event": next_event.get("id") if next_event else None,
         "finish": str(finish_path(mode).resolve()),
+        "finish_contract": str(finish_contract_path(mode).resolve()),
     }
 
 
@@ -651,8 +730,14 @@ def apply_g7_hook_trace_signal(
         else:
             _ensure_writer_required(mode)
             scope = "write finish handoff and retrospective after verifier PASS and inspector report"
-        call_id = agent_id.strip() or f"{agent_name}-local"
-        _record_agent_call(mode, event_id, agent_name, call_id, "spawned", scope)
+        call_id = _record_agent_call(
+            mode,
+            event_id,
+            agent_name,
+            agent_id.strip() or f"{agent_name}-local",
+            "spawned",
+            scope,
+        )
         _trace_g7_hook(mode, f"{event_id}.spawn_record", f"agent_id={call_id}", event_id, f"record {agent_name} spawn", {"agent": agent_name, "agent_id": call_id, **agent_spawn_contract(agent_name)})
         _trace_g7_hook_once(mode, f"{event_id}.wait_result", f"waiting for {agent_name} result", event_id, f"wait for {agent_name} result")
         _set_orchestrator(
@@ -731,6 +816,8 @@ def _g7_trace_result(mode: dict[str, Any], before_index: int, advanced: list[dic
         "finish": str(finish_path(mode).resolve()),
         "retrospective": str(retrospective_path(mode).resolve()),
         "inspector_report": str(inspector_report_path(mode).resolve()),
+        "inspector_audit": str(inspector_audit_path(mode).resolve()),
+        "finish_contract": str(finish_contract_path(mode).resolve()),
     }
 
 
@@ -757,4 +844,6 @@ def g7_status(ws: Workspace) -> dict[str, Any]:
         "finish": str(finish_path(mode).resolve()),
         "retrospective": str(retrospective_path(mode).resolve()),
         "inspector_report": str(inspector_report_path(mode).resolve()),
+        "inspector_audit": str(inspector_audit_path(mode).resolve()),
+        "finish_contract": str(finish_contract_path(mode).resolve()),
     }

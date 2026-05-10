@@ -37,6 +37,14 @@ python "<plugin-root>\superteam_codex\cli.py" --project "<project-root>" g2-trac
 python "<plugin-root>\superteam_codex\cli.py" --project "<project-root>" g2-trace --signal design-step --complete "<final Pencil design note>"
 ```
 
+Agent definition rule: before any role call, read
+`mode.json.agent_roster.roles.<role>` and treat its definition path plus
+`rules_sha256` as the identity. Before any `spawn-record` or
+`inspector-spawn-record`, inspect `mode.json.agent_slots`. If the required role
+already has an `agent_id`, continue that existing agent with `send_input` and
+record the same id. Do not spawn new event-specific `designer` or `inspector`
+agents for each G2 leaf event.
+
 The G2 subtree is:
 
 1. `G2.START`
@@ -52,12 +60,20 @@ The G2 subtree is:
 11. `G2.EXTRACT_PENCIL_FRAMES`
 12. `G2.MAP_FEATURE_TO_PENCIL_FRAME`
 13. `G2.CHECK_FEATURE_UI_MAP`
-14. `G2.DRAFT_DESIGN_CONTRACT`
-15. `G2.DELIVER_PENCIL_DESIGN`
-16. `G2.WRITE_DESIGN_ARTIFACT`
-17. `G2.READINESS_CHECK`
-18. `G2.USER_APPROVAL`
-19. `G2.COMPLETE`
+14. `G2.MAP_PENCIL_TO_CODE_TARGETS`
+15. `G2.EXTRACT_LAYOUT_SPEC`
+16. `G2.EXTRACT_DESIGN_TOKENS`
+17. `G2.MAP_INTERACTION_STATES`
+18. `G2.WRITE_VISUAL_ACCEPTANCE`
+19. `G2.CHECK_UI_IMPLEMENTATION_CONTRACT`
+20. `G2.WRITE_PENCIL_CONTRACT_MAP`
+21. `G2.CHECK_PENCIL_CONTRACT_MAP`
+22. `G2.DRAFT_DESIGN_CONTRACT`
+23. `G2.DELIVER_PENCIL_DESIGN`
+24. `G2.WRITE_DESIGN_ARTIFACT`
+25. `G2.READINESS_CHECK`
+26. `G2.USER_APPROVAL`
+27. `G2.COMPLETE`
 
 `G2.DESIGN_PENCIL_STEPS` has a project-tree child collection:
 
@@ -81,8 +97,9 @@ Hard constraints:
   `enter -> spawn_required -> spawn_record -> wait_result -> result_record -> inspector_required -> inspector_spawn_record -> inspector_wait_result -> inspector_result_record -> inspector_check -> next`.
 - User gates emit `enter -> hold` and stop until a matching `--signal` is
   recorded; user completion records `record -> inspector_required -> inspector_spawn_record -> inspector_wait_result -> inspector_result_record -> inspector_check -> next`.
-- Every `inspector_check` requires a real `inspector` spawn record and agent id
-  first; OR must not impersonate Inspector.
+- Every `inspector_check` requires a real reusable `inspector` slot spawn record
+  and agent id first; OR must not impersonate Inspector or create a new
+  inspector for each event.
 - `DRAFT_UI_DESIGN_PLAN`, `REVIEW_SOURCE_PACK`, `DRAFT_DESIGN_CONTRACT`, and
   `WRITE_DESIGN_ARTIFACT` must be completed through the declared spawn signals,
   not by silent main-session synthesis inside the hook-trace path.
@@ -97,7 +114,11 @@ Hard constraints:
 - UI projects require a project-specific Pencil `.pen` file.
 - UI projects require extracted Pencil frames.
 - UI projects require `feature-ui-map.json` status `ok`.
-- G3/G4/G5/G6 must cite Pencil frame ids for UI work, not only `02-design.md`.
+- UI projects require `visual-acceptance.json`, `pencil-contract-map.json`,
+  and one valid `evidence/g2/reference/<frame_id>-reference.png` per mapped
+  Pencil frame before G2 approval.
+- G3/G4/G5/G6 must cite G2 Pencil frame ids, contract refs, and reference
+  screenshots for UI work, not only `02-design.md`.
 - `G2.USER_APPROVAL` can only be completed with explicit user approval.
 
 Record user approval with:

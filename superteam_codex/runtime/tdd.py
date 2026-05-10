@@ -335,12 +335,20 @@ def work_item_guidance_contract(item: dict[str, Any]) -> str:
     parts: list[str] = []
     frame_ids = [str(value) for value in item.get("frame_ids") or [] if str(value).strip()]
     if frame_ids and frame_ids != ["NO_UI"]:
-        parts.append("G3 UI frames=" + ",".join(frame_ids))
+        parts.append("G2 UI frames=" + ",".join(frame_ids))
+    contract_ref = str(item.get("contract_ref") or "").strip()
+    if contract_ref:
+        parts.append("G2 pencil_contract=" + contract_ref)
     spec_refs = item.get("spec_refs") if isinstance(item.get("spec_refs"), dict) else {}
     if spec_refs:
         refs = [f"{key}:{value}" for key, value in spec_refs.items() if value]
         if refs:
-            parts.append("G3 specs=" + "; ".join(refs))
+            parts.append("G2 design specs=" + "; ".join(refs))
+    evidence_refs = item.get("evidence_refs") if isinstance(item.get("evidence_refs"), dict) else {}
+    if evidence_refs:
+        refs = [f"{key}:{value}" for key, value in evidence_refs.items() if value]
+        if refs:
+            parts.append("visual evidence=" + "; ".join(refs))
     checks = [str(value).strip() for value in item.get("acceptance_checks") or [] if str(value).strip()]
     if checks:
         parts.append("acceptance=" + " | ".join(checks[:3]))
@@ -374,6 +382,7 @@ def mark_active_ui_guidance(mode: dict[str, Any], *, source: str) -> dict[str, A
         "contract": work_item_guidance_contract(item),
         "frame_ids": list(item.get("frame_ids") or []),
         "spec_refs": item.get("spec_refs") if isinstance(item.get("spec_refs"), dict) else {},
+        "evidence_refs": item.get("evidence_refs") if isinstance(item.get("evidence_refs"), dict) else {},
         "acceptance_checks": list(item.get("acceptance_checks") or []),
         "code_targets": list(item.get("code_targets") or []),
     }
@@ -392,7 +401,7 @@ def ui_guidance_errors(mode: dict[str, Any]) -> list[str]:
         if not is_ui_work_item(item):
             continue
         if item.get("state") == GREEN_CONFIRMED and not item.get("ui_guidance"):
-            errors.append(f"{item_id} is a UI work item but has no pre-implementation G3 UI guidance record")
+            errors.append(f"{item_id} is a UI work item but has no pre-implementation G2/G3 UI guidance record")
     return errors
 
 
@@ -470,7 +479,7 @@ def render_tdd_execution_markdown(mode: dict[str, Any]) -> list[str]:
                 "",
                 f"Status: {status}",
                 "",
-                "### G3 UI guidance",
+                "### G2/G3 UI guidance",
                 "",
             ]
         )
@@ -486,7 +495,7 @@ def render_tdd_execution_markdown(mode: dict[str, Any]) -> list[str]:
                 ]
             )
         elif is_ui_work_item(item):
-            lines.extend(["- Missing pre-implementation G3 UI guidance.", ""])
+            lines.extend(["- Missing pre-implementation G2/G3 UI guidance.", ""])
         else:
             lines.extend(["- NO_UI", ""])
         lines.extend(

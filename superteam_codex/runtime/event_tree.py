@@ -42,6 +42,14 @@ G2_EVENT_IDS = [
     "G2.EXTRACT_PENCIL_FRAMES",
     "G2.MAP_FEATURE_TO_PENCIL_FRAME",
     "G2.CHECK_FEATURE_UI_MAP",
+    "G2.MAP_PENCIL_TO_CODE_TARGETS",
+    "G2.EXTRACT_LAYOUT_SPEC",
+    "G2.EXTRACT_DESIGN_TOKENS",
+    "G2.MAP_INTERACTION_STATES",
+    "G2.WRITE_VISUAL_ACCEPTANCE",
+    "G2.CHECK_UI_IMPLEMENTATION_CONTRACT",
+    "G2.WRITE_PENCIL_CONTRACT_MAP",
+    "G2.CHECK_PENCIL_CONTRACT_MAP",
     "G2.DRAFT_DESIGN_CONTRACT",
     "G2.DELIVER_PENCIL_DESIGN",
     "G2.WRITE_DESIGN_ARTIFACT",
@@ -56,13 +64,7 @@ G3_EVENT_IDS = [
     "G3.CHECK_G2_APPROVED",
     "G3.LOAD_PENCIL_AUTHORITY",
     "G3.SCAN_IMPLEMENTATION_SURFACE",
-    "G3.MAP_PENCIL_TO_CODE_TARGETS",
     "G3.CHECK_UI_CODE_MAP",
-    "G3.EXTRACT_LAYOUT_SPEC",
-    "G3.EXTRACT_DESIGN_TOKENS",
-    "G3.MAP_INTERACTION_STATES",
-    "G3.WRITE_VISUAL_ACCEPTANCE",
-    "G3.CHECK_UI_IMPLEMENTATION_CONTRACT",
     "G3.MATERIALIZE_WORK_ITEMS",
     "G3.DRAFT_EXECUTION_PLAN",
     "G3.CHECK_EXECUTION_PLAN",
@@ -116,6 +118,70 @@ G7_EVENT_IDS = [
     "G7.CHECK_FINISH_GATE",
     "G7.COMPLETE",
 ]
+
+LEGACY_EVENT_IDS = {
+    "G3.WRITE_PLAN",
+    "G3.MAP_PENCIL_TO_CODE_TARGETS",
+    "G3.EXTRACT_LAYOUT_SPEC",
+    "G3.EXTRACT_DESIGN_TOKENS",
+    "G3.MAP_INTERACTION_STATES",
+    "G3.WRITE_VISUAL_ACCEPTANCE",
+    "G3.CHECK_UI_IMPLEMENTATION_CONTRACT",
+    "G4.RECORD_EVIDENCE",
+    "G5.REVIEW_DELIVERY",
+    "G6.VERIFY_DELIVERY",
+    "G7.WRITE_HANDOFF",
+}
+
+REQUIRED_STATIC_EVENT_IDS = {
+    "RUN",
+    *STAGE_TO_PHASE.values(),
+    "G1.START",
+    *(event_id for event_id, _question in G1_QUESTIONS),
+    "G1.SUMMARY",
+    "G1.APPROVAL",
+    "G1.COMPLETE",
+    *G2_EVENT_IDS,
+    "G2.DESIGN_PENCIL_STEPS.ITEMS",
+    *G3_EVENT_IDS,
+    "G3.WORK_ITEMS",
+    *G4_EVENT_IDS,
+    *G5_EVENT_IDS,
+    *G6_EVENT_IDS,
+    *G7_EVENT_IDS,
+}
+
+PHASE_STATIC_CHILD_IDS = {
+    "G1": [
+        "G1.START",
+        *(event_id for event_id, _question in G1_QUESTIONS),
+        "G1.SUMMARY",
+        "G1.APPROVAL",
+        "G1.COMPLETE",
+    ],
+    "G2": G2_EVENT_IDS,
+    "G3": [*G3_EVENT_IDS, "G3.WORK_ITEMS"],
+    "G4": G4_EVENT_IDS,
+    "G5": G5_EVENT_IDS,
+    "G6": G6_EVENT_IDS,
+    "G7": G7_EVENT_IDS,
+}
+
+STRUCTURAL_EVENT_FIELDS = {
+    "id",
+    "parent",
+    "phase",
+    "kind",
+    "title",
+    "requires",
+    "next",
+    "authority",
+    "artifact",
+    "hook_policy",
+    "requires_answer",
+    "stage",
+    "nested_run_allowed",
+}
 
 
 def _node(
@@ -182,7 +248,7 @@ def _g1_nodes() -> list[dict[str, Any]]:
             status="active",
             title="启动 G1",
             next_event="G1.Q1",
-            authority=["event_tree"],
+            authority=["event_tree", "project-definition.json"],
             artifact="01-project-definition.md",
             hook_policy="enter_g1_before_questions",
         )
@@ -198,7 +264,7 @@ def _g1_nodes() -> list[dict[str, Any]]:
                 status="pending",
                 title=question,
                 next_event=next_event,
-                authority=["user_prompt", "01-project-definition.md"],
+                authority=["user_prompt", "project-definition.json", "01-project-definition.md"],
                 artifact="01-project-definition.md",
                 hook_policy="user_answer_required",
                 requires_answer=True,
@@ -214,7 +280,7 @@ def _g1_nodes() -> list[dict[str, Any]]:
                 status="pending",
                 title="汇总项目定义",
                 next_event="G1.APPROVAL",
-                authority=["event_tree", "01-project-definition.md"],
+                authority=["event_tree", "project-definition.json", "01-project-definition.md"],
                 artifact="01-project-definition.md",
                 hook_policy="all_g1_questions_terminal",
             ),
@@ -226,7 +292,7 @@ def _g1_nodes() -> list[dict[str, Any]]:
                 status="pending",
                 title="用户确认 G1",
                 next_event="G1.COMPLETE",
-                authority=["user_prompt"],
+                authority=["user_prompt", "project-definition.json"],
                 artifact="01-project-definition.md",
                 hook_policy="user_only",
             ),
@@ -237,7 +303,7 @@ def _g1_nodes() -> list[dict[str, Any]]:
                 kind="complete",
                 status="pending",
                 title="G1 关闭",
-                authority=["event_tree"],
+                authority=["event_tree", "project-definition.json"],
                 artifact="01-project-definition.md",
                 hook_policy="advance_to_g2",
             ),
@@ -261,6 +327,14 @@ def _g2_nodes() -> list[dict[str, Any]]:
         "G2.EXTRACT_PENCIL_FRAMES": "提取 Pencil frames",
         "G2.MAP_FEATURE_TO_PENCIL_FRAME": "映射功能到 Pencil frame",
         "G2.CHECK_FEATURE_UI_MAP": "校验 feature-ui-map",
+        "G2.MAP_PENCIL_TO_CODE_TARGETS": "生成 Pencil 到代码目标映射",
+        "G2.EXTRACT_LAYOUT_SPEC": "提取 UI layout spec",
+        "G2.EXTRACT_DESIGN_TOKENS": "提取 design tokens",
+        "G2.MAP_INTERACTION_STATES": "映射交互状态",
+        "G2.WRITE_VISUAL_ACCEPTANCE": "生成视觉验收合同",
+        "G2.CHECK_UI_IMPLEMENTATION_CONTRACT": "校验 UI 设计实现合同",
+        "G2.WRITE_PENCIL_CONTRACT_MAP": "生成 Pencil 设计契约图",
+        "G2.CHECK_PENCIL_CONTRACT_MAP": "校验 Pencil 设计契约图",
         "G2.DRAFT_DESIGN_CONTRACT": "生成 G2 设计合同",
         "G2.DELIVER_PENCIL_DESIGN": "交付 Pencil 设计稿",
         "G2.WRITE_DESIGN_ARTIFACT": "生成 02-design.md",
@@ -269,9 +343,9 @@ def _g2_nodes() -> list[dict[str, Any]]:
         "G2.COMPLETE": "G2 关闭",
     }
     authorities = {
-        "G2.START": ["event_tree", "01-project-definition.md"],
-        "G2.READ_G1_DEFINITION": ["01-project-definition.md", "event_tree"],
-        "G2.CHECK_UI_REQUIREMENT": ["G1.Q4", "01-project-definition.md"],
+        "G2.START": ["event_tree", "project-definition.json", "01-project-definition.md"],
+        "G2.READ_G1_DEFINITION": ["project-definition.json", "01-project-definition.md", "event_tree"],
+        "G2.CHECK_UI_REQUIREMENT": ["G1.Q4", "project-definition.json", "01-project-definition.md"],
         "G2.DRAFT_UI_DESIGN_PLAN": ["G1.Q1", "G1.Q3", "G1.Q4", "mode.json:g2_contract"],
         "G2.APPROVE_UI_DESIGN_PLAN": ["user_prompt", "mode.json:g2_contract"],
         "G2.CREATE_PENCIL_PROJECT": ["mode.json:g2_contract", "*.pen"],
@@ -282,10 +356,37 @@ def _g2_nodes() -> list[dict[str, Any]]:
         "G2.EXTRACT_PENCIL_FRAMES": ["frame-inventory.json", "*.pen"],
         "G2.MAP_FEATURE_TO_PENCIL_FRAME": ["feature-ui-map.json", "frame-inventory.json"],
         "G2.CHECK_FEATURE_UI_MAP": ["feature-ui-map.json"],
-        "G2.DRAFT_DESIGN_CONTRACT": ["mode.json:g2_contract", "event_tree"],
-        "G2.DELIVER_PENCIL_DESIGN": ["*.pen", "frame-inventory.json", "feature-ui-map.json"],
-        "G2.WRITE_DESIGN_ARTIFACT": ["mode.json:g2_contract", "02-design.md"],
-        "G2.READINESS_CHECK": ["event_tree", "mode.json:g2_contract", "02-design.md"],
+        "G2.MAP_PENCIL_TO_CODE_TARGETS": ["frame-inventory.json", "feature-ui-map.json", "ui-code-map.json"],
+        "G2.EXTRACT_LAYOUT_SPEC": ["*.pen", "frame-inventory.json", "ui-code-map.json"],
+        "G2.EXTRACT_DESIGN_TOKENS": ["*.pen", "frame-inventory.json"],
+        "G2.MAP_INTERACTION_STATES": ["ui-code-map.json", "G1.Q3", "G1.Q5"],
+        "G2.WRITE_VISUAL_ACCEPTANCE": [
+            "ui-code-map.json",
+            "ui-layout-spec.json",
+            "design-tokens.json",
+            "evidence/g2/reference/*.png",
+        ],
+        "G2.CHECK_UI_IMPLEMENTATION_CONTRACT": [
+            "ui-code-map.json",
+            "ui-layout-spec.json",
+            "design-tokens.json",
+            "interaction-state-map.json",
+            "visual-acceptance.json",
+            "evidence/g2/reference/*.png",
+        ],
+        "G2.WRITE_PENCIL_CONTRACT_MAP": [
+            "ui-code-map.json",
+            "ui-layout-spec.json",
+            "design-tokens.json",
+            "interaction-state-map.json",
+            "visual-acceptance.json",
+            "evidence/g2/reference/*.png",
+        ],
+        "G2.CHECK_PENCIL_CONTRACT_MAP": ["pencil-contract-map.json", "mode.json:g2_contract"],
+        "G2.DRAFT_DESIGN_CONTRACT": ["mode.json:g2_contract", "event_tree", "pencil-contract-map.json"],
+        "G2.DELIVER_PENCIL_DESIGN": ["*.pen", "frame-inventory.json", "feature-ui-map.json", "visual-acceptance.json", "pencil-contract-map.json"],
+        "G2.WRITE_DESIGN_ARTIFACT": ["mode.json:g2_contract", "02-design.md", "pencil-contract-map.json"],
+        "G2.READINESS_CHECK": ["event_tree", "mode.json:g2_contract", "02-design.md", "visual-acceptance.json", "pencil-contract-map.json"],
         "G2.USER_APPROVAL": ["user_prompt"],
         "G2.COMPLETE": ["event_tree"],
     }
@@ -297,6 +398,14 @@ def _g2_nodes() -> list[dict[str, Any]]:
         "G2.EXTRACT_PENCIL_FRAMES": "ui_requires_frame_inventory",
         "G2.MAP_FEATURE_TO_PENCIL_FRAME": "ui_features_require_real_frame_ids",
         "G2.CHECK_FEATURE_UI_MAP": "feature_ui_map_must_be_ok_for_ui",
+        "G2.MAP_PENCIL_TO_CODE_TARGETS": "write_ui_code_map_from_design_authority",
+        "G2.EXTRACT_LAYOUT_SPEC": "extract_layout_contract_from_pencil",
+        "G2.EXTRACT_DESIGN_TOKENS": "extract_design_tokens_from_pencil",
+        "G2.MAP_INTERACTION_STATES": "map_interaction_states_from_ui_actions",
+        "G2.WRITE_VISUAL_ACCEPTANCE": "write_visual_acceptance_contract",
+        "G2.CHECK_UI_IMPLEMENTATION_CONTRACT": "ui_implementation_contract_must_be_complete",
+        "G2.WRITE_PENCIL_CONTRACT_MAP": "write_one_to_one_pencil_design_contract_map",
+        "G2.CHECK_PENCIL_CONTRACT_MAP": "pencil_contract_map_must_cover_every_ui_frame",
         "G2.DELIVER_PENCIL_DESIGN": "pencil_design_before_text_deliverable",
         "G2.USER_APPROVAL": "user_only",
         "G2.COMPLETE": "advance_to_g3",
@@ -341,13 +450,7 @@ def g3_event_nodes() -> list[dict[str, Any]]:
         "G3.CHECK_G2_APPROVED": "确认 G2 已通过",
         "G3.LOAD_PENCIL_AUTHORITY": "加载 Pencil 权威设计稿",
         "G3.SCAN_IMPLEMENTATION_SURFACE": "扫描代码实现面",
-        "G3.MAP_PENCIL_TO_CODE_TARGETS": "映射 Pencil 到代码目标",
         "G3.CHECK_UI_CODE_MAP": "校验 ui-code-map",
-        "G3.EXTRACT_LAYOUT_SPEC": "提取 UI layout spec",
-        "G3.EXTRACT_DESIGN_TOKENS": "提取 design tokens",
-        "G3.MAP_INTERACTION_STATES": "映射交互状态",
-        "G3.WRITE_VISUAL_ACCEPTANCE": "生成视觉验收合同",
-        "G3.CHECK_UI_IMPLEMENTATION_CONTRACT": "校验 UI 实现合同",
         "G3.MATERIALIZE_WORK_ITEMS": "生成 G4 work items",
         "G3.DRAFT_EXECUTION_PLAN": "编制执行计划",
         "G3.CHECK_EXECUTION_PLAN": "校验执行计划",
@@ -358,26 +461,24 @@ def g3_event_nodes() -> list[dict[str, Any]]:
     }
     authorities = {
         "G3.START": ["event_tree", "02-design.md"],
-        "G3.READ_G1_G2_DELIVERABLES": ["01-project-definition.md", "02-design.md", "mode.json:g2_contract"],
+        "G3.READ_G1_G2_DELIVERABLES": ["project-definition.json", "01-project-definition.md", "02-design.md", "mode.json:g2_contract"],
         "G3.CHECK_G2_APPROVED": ["mode.json:g2_approval", "event_tree"],
-        "G3.LOAD_PENCIL_AUTHORITY": ["*.pen", "frame-inventory.json", "feature-ui-map.json"],
-        "G3.SCAN_IMPLEMENTATION_SURFACE": ["source-manifest.json", "G1.Q7", "project files"],
-        "G3.MAP_PENCIL_TO_CODE_TARGETS": ["frame-inventory.json", "feature-ui-map.json", "mode.json:g3_contract"],
-        "G3.CHECK_UI_CODE_MAP": ["ui-code-map.json", "feature-ui-map.json"],
-        "G3.EXTRACT_LAYOUT_SPEC": ["*.pen", "frame-inventory.json", "ui-code-map.json"],
-        "G3.EXTRACT_DESIGN_TOKENS": ["*.pen", "frame-inventory.json", "ui-code-map.json"],
-        "G3.MAP_INTERACTION_STATES": ["ui-code-map.json", "G1.Q3", "G1.Q5"],
-        "G3.WRITE_VISUAL_ACCEPTANCE": ["ui-code-map.json", "ui-layout-spec.json", "design-tokens.json"],
-        "G3.CHECK_UI_IMPLEMENTATION_CONTRACT": [
-            "ui-code-map.json",
+        "G3.LOAD_PENCIL_AUTHORITY": [
+            "*.pen",
+            "frame-inventory.json",
+            "feature-ui-map.json",
             "ui-layout-spec.json",
             "design-tokens.json",
             "interaction-state-map.json",
             "visual-acceptance.json",
+            "pencil-contract-map.json",
+            "evidence/g2/reference/*.png",
         ],
-        "G3.MATERIALIZE_WORK_ITEMS": ["ui-code-map.json", "mode.json:g3_contract"],
+        "G3.SCAN_IMPLEMENTATION_SURFACE": ["source-manifest.json", "G1.Q7", "project files"],
+        "G3.CHECK_UI_CODE_MAP": ["ui-code-map.json", "feature-ui-map.json", "pencil-contract-map.json"],
+        "G3.MATERIALIZE_WORK_ITEMS": ["pencil-contract-map.json", "ui-code-map.json", "mode.json:g3_contract"],
         "G3.DRAFT_EXECUTION_PLAN": ["implementation-plan.json", "mode.json:g3_contract"],
-        "G3.CHECK_EXECUTION_PLAN": ["implementation-plan.json", "ui-code-map.json"],
+        "G3.CHECK_EXECUTION_PLAN": ["implementation-plan.json", "pencil-contract-map.json", "ui-code-map.json"],
         "G3.WRITE_PLAN_ARTIFACT": ["mode.json:g3_contract", "04-plan.md"],
         "G3.READINESS_CHECK": ["event_tree", "mode.json:g3_contract", "04-plan.md"],
         "G3.USER_APPROVAL": ["user_prompt"],
@@ -385,18 +486,12 @@ def g3_event_nodes() -> list[dict[str, Any]]:
     }
     policies = {
         "G3.CHECK_G2_APPROVED": "g2_must_be_approved_before_g3",
-        "G3.LOAD_PENCIL_AUTHORITY": "ui_projects_require_pencil_authority",
-        "G3.SCAN_IMPLEMENTATION_SURFACE": "spawn_architect",
-        "G3.MAP_PENCIL_TO_CODE_TARGETS": "spawn_designer",
+        "G3.LOAD_PENCIL_AUTHORITY": "ui_projects_require_g2_pencil_design_contract",
+        "G3.SCAN_IMPLEMENTATION_SURFACE": "call_architect_fixed_agent_definition",
         "G3.CHECK_UI_CODE_MAP": "ui_code_map_must_be_ok_for_ui",
-        "G3.EXTRACT_LAYOUT_SPEC": "extract_layout_contract_from_pencil",
-        "G3.EXTRACT_DESIGN_TOKENS": "extract_design_tokens_from_pencil",
-        "G3.MAP_INTERACTION_STATES": "map_interaction_states_from_ui_actions",
-        "G3.WRITE_VISUAL_ACCEPTANCE": "write_visual_acceptance_contract",
-        "G3.CHECK_UI_IMPLEMENTATION_CONTRACT": "ui_implementation_contract_must_be_complete",
-        "G3.MATERIALIZE_WORK_ITEMS": "materialize_g4_work_items_from_mapping",
-        "G3.DRAFT_EXECUTION_PLAN": "spawn_planner",
-        "G3.CHECK_EXECUTION_PLAN": "execution_plan_must_reference_frames_and_code_targets",
+        "G3.MATERIALIZE_WORK_ITEMS": "materialize_g4_work_items_from_pencil_contract_map",
+        "G3.DRAFT_EXECUTION_PLAN": "call_planner_fixed_agent_definition",
+        "G3.CHECK_EXECUTION_PLAN": "execution_plan_must_reference_pencil_contracts_frames_and_code_targets",
         "G3.WRITE_PLAN_ARTIFACT": "write_derived_plan_artifact",
         "G3.USER_APPROVAL": "user_only",
         "G3.COMPLETE": "advance_to_g4",
@@ -426,7 +521,7 @@ def g3_event_nodes() -> list[dict[str, Any]]:
             kind="work_item_group",
             status="pending",
             title="G4 work items pending G3 plan materialization",
-            authority=["ui-code-map.json", "implementation-plan.json"],
+            authority=["pencil-contract-map.json", "ui-code-map.json", "implementation-plan.json"],
             artifact="04-plan.md",
             hook_policy="materialize_from_g3_execution_plan",
         )
@@ -439,7 +534,7 @@ def g4_event_nodes() -> list[dict[str, Any]]:
         "G4.START": "Start G4 execution",
         "G4.LOAD_APPROVED_PLAN": "Load approved G3 plan",
         "G4.CHECK_G3_APPROVED": "Check G3 approval",
-        "G4.SPAWN_EXECUTOR": "Spawn executor",
+        "G4.SPAWN_EXECUTOR": "Call executor",
         "G4.EXECUTE_WORK_ITEMS": "Execute work items",
         "G4.RECORD_EXECUTION_EVIDENCE": "Record execution evidence",
         "G4.OPTIONAL_POLISH": "Run optional polish bridge",
@@ -448,22 +543,22 @@ def g4_event_nodes() -> list[dict[str, Any]]:
     }
     authorities = {
         "G4.START": ["event_tree", "04-plan.md"],
-        "G4.LOAD_APPROVED_PLAN": ["04-plan.md", "implementation-plan.json"],
+        "G4.LOAD_APPROVED_PLAN": ["04-plan.md", "implementation-plan.json", "pencil-contract-map.json"],
         "G4.CHECK_G3_APPROVED": ["mode.json:g3_approval", "event_tree"],
-        "G4.SPAWN_EXECUTOR": ["implementation-plan.json", "mode.json:g4_contract"],
-        "G4.EXECUTE_WORK_ITEMS": ["executor result", "implementation-plan.json"],
-        "G4.RECORD_EXECUTION_EVIDENCE": ["05-execution.md", "implementation-plan.json"],
+        "G4.SPAWN_EXECUTOR": ["implementation-plan.json", "pencil-contract-map.json", "mode.json:g4_contract"],
+        "G4.EXECUTE_WORK_ITEMS": ["executor result", "implementation-plan.json", "pencil-contract-map.json"],
+        "G4.RECORD_EXECUTION_EVIDENCE": ["05-execution.md", "implementation-plan.json", "evidence/g6/*-implementation.png"],
         "G4.OPTIONAL_POLISH": ["05-execution.md", "polish.md"],
         "G4.READINESS_CHECK": ["05-execution.md", "event_tree"],
         "G4.COMPLETE": ["event_tree"],
     }
     policies = {
         "G4.CHECK_G3_APPROVED": "g3_must_be_approved_before_execute",
-        "G4.SPAWN_EXECUTOR": "spawn_executor",
+        "G4.SPAWN_EXECUTOR": "call_executor_fixed_agent_slot",
         "G4.EXECUTE_WORK_ITEMS": "executor_owned_result_required",
         "G4.RECORD_EXECUTION_EVIDENCE": "execution_evidence_required",
         "G4.OPTIONAL_POLISH": "polish_bridge_or_not_applicable",
-        "G4.READINESS_CHECK": "spawn_inspector_before_review",
+        "G4.READINESS_CHECK": "call_inspector_fixed_agent_slot_before_review",
         "G4.COMPLETE": "advance_to_g5",
     }
     nodes: list[dict[str, Any]] = []
@@ -491,7 +586,7 @@ def g5_event_nodes() -> list[dict[str, Any]]:
         "G5.START": "Start G5 review",
         "G5.LOAD_REVIEW_INPUTS": "Load review inputs",
         "G5.CHECK_G4_COMPLETE": "Check G4 completion",
-        "G5.SPAWN_REVIEWER": "Spawn reviewer",
+        "G5.SPAWN_REVIEWER": "Call reviewer",
         "G5.RECORD_REVIEW_EVIDENCE": "Record review evidence",
         "G5.UI_QUALITY_REVIEW": "UI quality review",
         "G5.CHECK_REVIEW_GATE": "Check review gate",
@@ -500,6 +595,7 @@ def g5_event_nodes() -> list[dict[str, Any]]:
     authorities = {
         "G5.START": ["event_tree", "05-execution.md"],
         "G5.LOAD_REVIEW_INPUTS": [
+            "project-definition.json",
             "01-project-definition.md",
             "02-design.md",
             "04-plan.md",
@@ -508,24 +604,29 @@ def g5_event_nodes() -> list[dict[str, Any]]:
         ],
         "G5.CHECK_G4_COMPLETE": ["event_tree", "mode.json:g4_contract"],
         "G5.SPAWN_REVIEWER": ["05-execution.md", "04-plan.md", "mode.json:g5_contract"],
-        "G5.RECORD_REVIEW_EVIDENCE": ["06-review.md", "mode.json:g5_contract"],
+        "G5.RECORD_REVIEW_EVIDENCE": ["06-review.md", "review-contract.json", "mode.json:g5_contract"],
         "G5.UI_QUALITY_REVIEW": [
             "ui-code-map.json",
             "ui-layout-spec.json",
             "design-tokens.json",
             "visual-acceptance.json",
+            "pencil-contract-map.json",
+            "evidence/g2/reference/*.png",
+            "evidence/g6/*-implementation.png",
             "06-review.md",
+            "review-contract.json",
+            "evidence/g5/visual-review-report.json",
         ],
-        "G5.CHECK_REVIEW_GATE": ["06-review.md", "implementation-plan.json", "05-execution.md"],
+        "G5.CHECK_REVIEW_GATE": ["06-review.md", "review-contract.json", "implementation-plan.json", "05-execution.md", "evidence/g5/visual-review-report.json"],
         "G5.COMPLETE": ["event_tree"],
     }
     policies = {
         "G5.LOAD_REVIEW_INPUTS": "guide_reviewer_with_g1_g4_artifacts",
         "G5.CHECK_G4_COMPLETE": "g4_must_be_complete_before_review",
-        "G5.SPAWN_REVIEWER": "spawn_reviewer_quality_gate",
-        "G5.RECORD_REVIEW_EVIDENCE": "review_artifact_required",
+        "G5.SPAWN_REVIEWER": "call_reviewer_fixed_agent_slot_quality_gate",
+        "G5.RECORD_REVIEW_EVIDENCE": "review_contract_required",
         "G5.UI_QUALITY_REVIEW": "ui_projects_require_designer_review_guidance",
-        "G5.CHECK_REVIEW_GATE": "review_gate_must_clear_before_verify",
+        "G5.CHECK_REVIEW_GATE": "review_contract_must_clear_before_verify",
         "G5.COMPLETE": "advance_to_g6",
     }
     nodes: list[dict[str, Any]] = []
@@ -553,33 +654,45 @@ def g6_event_nodes() -> list[dict[str, Any]]:
         "G6.START": "Start G6 verification",
         "G6.LOAD_VERIFICATION_INPUTS": "Load verification inputs",
         "G6.CHECK_G5_COMPLETE": "Check G5 completion",
-        "G6.SPAWN_VERIFIER": "Spawn verifier",
+        "G6.SPAWN_VERIFIER": "Call verifier",
         "G6.RECORD_VERIFICATION_EVIDENCE": "Record verification evidence",
         "G6.CHECK_VERIFICATION_GATE": "Check verification gate",
         "G6.COMPLETE": "Close G6 and advance to G7",
     }
     authorities = {
-        "G6.START": ["event_tree", "06-review.md"],
+        "G6.START": ["event_tree", "06-review.md", "review-contract.json"],
         "G6.LOAD_VERIFICATION_INPUTS": [
+            "project-definition.json",
             "01-project-definition.md",
             "02-design.md",
             "04-plan.md",
             "05-execution.md",
             "06-review.md",
+            "review-contract.json",
             "implementation-plan.json",
+            "pencil-contract-map.json",
+            "evidence/g2/reference/*.png",
+            "evidence/g6/*-implementation.png",
         ],
         "G6.CHECK_G5_COMPLETE": ["event_tree", "mode.json:g5_contract"],
-        "G6.SPAWN_VERIFIER": ["06-review.md", "04-plan.md", "mode.json:g6_contract"],
-        "G6.RECORD_VERIFICATION_EVIDENCE": ["07-verification.md", "mode.json:g6_contract"],
-        "G6.CHECK_VERIFICATION_GATE": ["07-verification.md", "06-review.md", "implementation-plan.json"],
+        "G6.SPAWN_VERIFIER": ["06-review.md", "review-contract.json", "04-plan.md", "mode.json:g6_contract"],
+        "G6.RECORD_VERIFICATION_EVIDENCE": ["07-verification.md", "verification-contract.json", "mode.json:g6_contract"],
+        "G6.CHECK_VERIFICATION_GATE": [
+            "07-verification.md",
+            "verification-contract.json",
+            "06-review.md",
+            "review-contract.json",
+            "implementation-plan.json",
+            "evidence/g6/visual-acceptance-report.json",
+        ],
         "G6.COMPLETE": ["event_tree"],
     }
     policies = {
         "G6.LOAD_VERIFICATION_INPUTS": "guide_verifier_with_g1_g5_artifacts",
         "G6.CHECK_G5_COMPLETE": "g5_must_be_complete_before_verification",
-        "G6.SPAWN_VERIFIER": "spawn_verifier_fresh_evidence_gate",
-        "G6.RECORD_VERIFICATION_EVIDENCE": "verification_artifact_required",
-        "G6.CHECK_VERIFICATION_GATE": "verification_pass_required_before_finish",
+        "G6.SPAWN_VERIFIER": "call_verifier_fixed_agent_slot_fresh_evidence_gate",
+        "G6.RECORD_VERIFICATION_EVIDENCE": "verification_contract_required",
+        "G6.CHECK_VERIFICATION_GATE": "verification_contract_pass_required_before_finish",
         "G6.COMPLETE": "advance_to_g7",
     }
     nodes: list[dict[str, Any]] = []
@@ -607,41 +720,44 @@ def g7_event_nodes() -> list[dict[str, Any]]:
         "G7.START": "Start G7 finish",
         "G7.LOAD_FINISH_INPUTS": "Load finish inputs",
         "G7.CHECK_G6_PASS": "Check G6 PASS verdict",
-        "G7.SPAWN_INSPECTOR": "Spawn inspector",
+        "G7.SPAWN_INSPECTOR": "Call inspector",
         "G7.RECORD_INSPECTOR_REPORT": "Record inspector report",
-        "G7.SPAWN_WRITER": "Spawn writer",
+        "G7.SPAWN_WRITER": "Call writer",
         "G7.WRITE_FINISH_ARTIFACTS": "Write finish artifacts",
         "G7.CHECK_FINISH_GATE": "Check finish gate",
         "G7.COMPLETE": "Close run",
     }
     authorities = {
-        "G7.START": ["event_tree", "07-verification.md"],
+        "G7.START": ["event_tree", "07-verification.md", "verification-contract.json"],
         "G7.LOAD_FINISH_INPUTS": [
+            "project-definition.json",
             "01-project-definition.md",
             "02-design.md",
             "04-plan.md",
             "05-execution.md",
             "06-review.md",
+            "review-contract.json",
             "07-verification.md",
+            "verification-contract.json",
             "hook_trace",
             "event_tree",
         ],
-        "G7.CHECK_G6_PASS": ["07-verification.md", "mode.json:g6_contract"],
+        "G7.CHECK_G6_PASS": ["07-verification.md", "verification-contract.json", "mode.json:g6_contract"],
         "G7.SPAWN_INSPECTOR": ["hook_trace", "event_tree", "mode.json"],
-        "G7.RECORD_INSPECTOR_REPORT": ["inspector-report.md", "mode.json:g7_contract"],
-        "G7.SPAWN_WRITER": ["07-verification.md", "inspector-report.md", "mode.json:g7_contract"],
-        "G7.WRITE_FINISH_ARTIFACTS": ["08-finish.md", "retrospective.md"],
-        "G7.CHECK_FINISH_GATE": ["08-finish.md", "retrospective.md", "inspector-report.md"],
+        "G7.RECORD_INSPECTOR_REPORT": ["inspector-report.md", "inspector-audit.json", "mode.json:g7_contract"],
+        "G7.SPAWN_WRITER": ["07-verification.md", "verification-contract.json", "inspector-report.md", "inspector-audit.json", "mode.json:g7_contract"],
+        "G7.WRITE_FINISH_ARTIFACTS": ["08-finish.md", "retrospective.md", "finish-contract.json"],
+        "G7.CHECK_FINISH_GATE": ["08-finish.md", "retrospective.md", "finish-contract.json", "inspector-report.md", "inspector-audit.json", "verification-contract.json"],
         "G7.COMPLETE": ["event_tree"],
     }
     policies = {
         "G7.LOAD_FINISH_INPUTS": "guide_finish_with_pass_verification_and_full_trace",
-        "G7.CHECK_G6_PASS": "g6_pass_required_before_finish",
-        "G7.SPAWN_INSPECTOR": "spawn_inspector_process_audit_before_handoff",
-        "G7.RECORD_INSPECTOR_REPORT": "inspector_report_required_before_writer",
-        "G7.SPAWN_WRITER": "spawn_writer_finish_and_retrospective",
-        "G7.WRITE_FINISH_ARTIFACTS": "finish_and_retrospective_required",
-        "G7.CHECK_FINISH_GATE": "finish_gate_requires_inspector_ack_and_improvement_action",
+        "G7.CHECK_G6_PASS": "verification_contract_pass_required_before_finish",
+        "G7.SPAWN_INSPECTOR": "call_inspector_fixed_agent_slot_process_audit_before_handoff",
+        "G7.RECORD_INSPECTOR_REPORT": "inspector_audit_required_before_writer",
+        "G7.SPAWN_WRITER": "call_writer_fixed_agent_slot_finish_and_retrospective",
+        "G7.WRITE_FINISH_ARTIFACTS": "finish_contract_required",
+        "G7.CHECK_FINISH_GATE": "finish_gate_requires_machine_contracts",
         "G7.COMPLETE": "mark_run_complete",
     }
     nodes: list[dict[str, Any]] = []
@@ -739,6 +855,108 @@ def blocked_event(mode: dict[str, Any], phase: str | None = None) -> dict[str, A
         return None
     blocked = [item for item in child_events(mode, phase_id) if item.get("status") == "blocked"]
     return blocked[0] if blocked else None
+
+
+def refresh_event_tree_schema(mode: dict[str, Any]) -> dict[str, Any]:
+    old_tree = mode.get("event_tree")
+    if not isinstance(old_tree, list):
+        old_tree = []
+    old_by_id = {item.get("id"): item for item in old_tree if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    new_tree = create_event_tree()
+    new_by_id = {item["id"]: item for item in new_tree}
+
+    for event_id, new_event in new_by_id.items():
+        old_event = old_by_id.get(event_id)
+        if not isinstance(old_event, dict):
+            continue
+        for key, value in old_event.items():
+            if key not in STRUCTURAL_EVENT_FIELDS:
+                new_event[key] = value
+
+    for phase in STAGE_TO_PHASE.values():
+        old_phase = old_by_id.get(phase)
+        if isinstance(old_phase, dict) and old_phase.get("status") in EVENT_STATUS_VALUES:
+            new_by_id[phase]["status"] = old_phase["status"]
+
+    current_phase = STAGE_TO_PHASE.get(str(mode.get("stage") or ""))
+    active_phases = [phase for phase in STAGE_TO_PHASE.values() if new_by_id[phase].get("status") == "active"]
+    if current_phase and len(active_phases) != 1:
+        for phase in STAGE_TO_PHASE.values():
+            if phase == current_phase:
+                new_by_id[phase]["status"] = "active"
+            elif new_by_id[phase].get("status") == "active":
+                new_by_id[phase]["status"] = "pending"
+
+    for phase, child_ids in PHASE_STATIC_CHILD_IDS.items():
+        phase_status = new_by_id[phase].get("status")
+        old_active_child_id = None
+        for old_event in old_tree:
+            if not isinstance(old_event, dict):
+                continue
+            if old_event.get("parent") == phase and old_event.get("status") == "active":
+                event_id = old_event.get("id")
+                if isinstance(event_id, str) and event_id in new_by_id and event_id not in LEGACY_EVENT_IDS:
+                    old_active_child_id = event_id
+                break
+        if phase_status == "done":
+            for event_id in child_ids:
+                event = new_by_id[event_id]
+                if event.get("status") not in EVENT_TERMINAL_STATUSES:
+                    event["status"] = "done"
+        elif phase_status == "pending":
+            for event_id in child_ids:
+                new_by_id[event_id]["status"] = "pending"
+        elif phase_status == "active":
+            active_id = old_active_child_id
+            if not active_id:
+                active_id = next((event_id for event_id in child_ids if old_by_id.get(event_id, {}).get("status") == "active"), None)
+            if not active_id:
+                active_id = next(
+                    (
+                        event_id
+                        for event_id in child_ids
+                        if old_by_id.get(event_id, {}).get("status") not in EVENT_TERMINAL_STATUSES
+                    ),
+                    child_ids[0],
+                )
+            active_index = child_ids.index(active_id)
+            for index, event_id in enumerate(child_ids):
+                event = new_by_id[event_id]
+                if event_id == active_id:
+                    event["status"] = "active"
+                elif event_id in old_by_id and old_by_id[event_id].get("status") in EVENT_STATUS_VALUES:
+                    old_status = old_by_id[event_id].get("status")
+                    event["status"] = "pending" if old_status == "active" else old_status
+                else:
+                    event["status"] = "done" if index < active_index else "pending"
+
+    for old_event in old_tree:
+        if not isinstance(old_event, dict):
+            continue
+        event_id = old_event.get("id")
+        parent_id = old_event.get("parent")
+        if (
+            isinstance(event_id, str)
+            and event_id not in new_by_id
+            and event_id not in LEGACY_EVENT_IDS
+            and isinstance(parent_id, str)
+            and parent_id in new_by_id
+        ):
+            copied = dict(old_event)
+            if copied.get("status") not in EVENT_STATUS_VALUES:
+                copied["status"] = "pending"
+            new_tree.append(copied)
+            new_by_id[event_id] = copied
+
+    mode["event_tree"] = new_tree
+    current = active_event(mode)
+    if isinstance(mode.get("orchestrator"), dict):
+        mode["orchestrator"]["active_event"] = current.get("id") if current else None
+    if isinstance(mode.get("inspector"), dict):
+        inspector_event = mode["inspector"].get("active_event")
+        if isinstance(inspector_event, str) and inspector_event not in new_by_id:
+            mode["inspector"]["active_event"] = None
+    return mode
 
 
 def activate_next_event(mode: dict[str, Any], current: dict[str, Any]) -> dict[str, Any] | None:
@@ -843,7 +1061,13 @@ def validate_event_tree(tree: Any, stage: str | None = None) -> list[str]:
         if event_id.startswith("G1.Q") and status in EVENT_TERMINAL_STATUSES:
             if item.get("requires_answer", True) and not str(item.get("answer") or "").strip():
                 errors.append(f"event {event_id} is {status} but has no answer")
-    for required in ["RUN", *STAGE_TO_PHASE.values()]:
+    legacy_ids = sorted(set(ids) & LEGACY_EVENT_IDS)
+    if legacy_ids:
+        errors.append(
+            "event_tree contains legacy text-only workflow events; refresh hook-trace schema before continuing: "
+            + ", ".join(legacy_ids)
+        )
+    for required in sorted(REQUIRED_STATIC_EVENT_IDS):
         if required not in ids:
             errors.append(f"event_tree missing required event: {required}")
     by_id = {item.get("id"): item for item in tree if isinstance(item, dict)}

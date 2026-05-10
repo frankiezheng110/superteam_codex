@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from .state import load_mode, validate_mode
+from .visual_evidence import g5_visual_evidence_errors, g6_visual_evidence_errors, is_ui_project
 from .workspace import Workspace, detect_version_dirs, read_json
 
 
@@ -12,6 +13,23 @@ def _check(name: str, status: str, message: str, data: dict | None = None) -> di
     if data:
         item["data"] = data
     return item
+
+
+def _contract_check(run_dir: Path, name: str, schema: str) -> dict:
+    path = run_dir / name
+    data = read_json(path, {})
+    if not path.exists():
+        return _check(name, "fail", f"{name} is missing", {"path": str(path)})
+    if not isinstance(data, dict):
+        return _check(name, "fail", f"{name} is not a JSON object", {"path": str(path)})
+    if data.get("schema") != schema:
+        return _check(name, "fail", f"{name} schema is invalid", {"path": str(path), "schema": data.get("schema")})
+    return _check(name, "pass", f"{name} is present", {"path": str(path)})
+
+
+def _mode_contract(mode: dict[str, Any], name: str) -> dict[str, Any]:
+    value = mode.get(name)
+    return value if isinstance(value, dict) else {}
 
 
 def run_doctor(ws: Workspace) -> dict[str, Any]:
@@ -71,6 +89,34 @@ def run_doctor(ws: Workspace) -> dict[str, Any]:
     else:
         checks.append(_check("version_baseline", "pass", "no version directories detected"))
 
+    if mode.get("stage") in {"g2", "g3", "execute", "review", "verify", "finish"}:
+        checks.append(_contract_check(run_dir, "project-definition.json", "superteam_codex.project_definition.v1"))
+    if mode.get("stage") in {"verify", "finish"} or _mode_contract(mode, "g5_contract").get("status") == "done":
+        checks.append(_contract_check(run_dir, "review-contract.json", "superteam_codex.review_contract.v1"))
+        if is_ui_project(mode):
+            visual_errors = g5_visual_evidence_errors(mode)
+            checks.append(
+                _check(
+                    "g5_visual_evidence",
+                    "fail" if visual_errors else "pass",
+                    "; ".join(visual_errors) if visual_errors else "G5 visual evidence is present",
+                )
+            )
+    if mode.get("stage") == "finish" or _mode_contract(mode, "g6_contract").get("status") == "done":
+        checks.append(_contract_check(run_dir, "verification-contract.json", "superteam_codex.verification_contract.v1"))
+        if is_ui_project(mode):
+            visual_errors = g6_visual_evidence_errors(mode)
+            checks.append(
+                _check(
+                    "g6_visual_evidence",
+                    "fail" if visual_errors else "pass",
+                    "; ".join(visual_errors) if visual_errors else "G6 visual evidence is present",
+                )
+            )
+    if mode.get("project_lifecycle") == "complete" or _mode_contract(mode, "g7_contract").get("status") == "done":
+        checks.append(_contract_check(run_dir, "inspector-audit.json", "superteam_codex.inspector_audit.v1"))
+        checks.append(_contract_check(run_dir, "finish-contract.json", "superteam_codex.finish_contract.v1"))
+
     statuses = {item["status"] for item in checks}
     if "fail" in statuses:
         health = "fail"
@@ -86,4 +132,3 @@ def run_doctor(ws: Workspace) -> dict[str, Any]:
         "status": mode.get("status"),
         "checks": checks,
     }
-

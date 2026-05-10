@@ -14,8 +14,8 @@ maintain a separate stage-local event table. The active path must be:
 RUN -> G1 -> <active G1 leaf event>
 ```
 
-`01-project-definition.md` is the only user-readable G1 artifact and is
-generated from the global event tree.
+`project-definition.json` is the machine gate contract. `01-project-definition.md`
+is the user-readable G1 artifact and is generated from the global event tree.
 
 Ask only the active question:
 
@@ -45,6 +45,14 @@ python "<plugin-root>\superteam_codex\cli.py" --project "<project-root>" g1-trac
 python "<plugin-root>\superteam_codex\cli.py" --project "<project-root>" g1-trace --signal inspector-result --agent inspector "<inspector result note>"
 ```
 
+Agent definition rule: before a role call, read
+`mode.json.agent_roster.roles.<role>` and treat its definition path plus
+`rules_sha256` as the identity. Before a `spawn-record`, inspect
+`mode.json.agent_slots`. If `prd-writer` or `inspector` already has an
+`agent_id`, continue that same agent with `send_input` and record the existing
+id. Do not spawn event-specific inspector agents for `G1.SUMMARY` and
+`G1.APPROVAL`.
+
 Then ask the user to approve G1. Only after explicit user approval, record:
 
 ```powershell
@@ -63,8 +71,12 @@ G1.COMPLETE: enter -> next
 Hard constraints:
 
 - Questions are user gates and must not spawn an agent.
+- Every answer and approval must be recorded into `project-definition.json`;
+  Markdown prose is not enough for G2.
 - `G1.SUMMARY` requires `prd-writer`; OR must not synthesize the summary directly.
-- Every `inspector_check` requires a real `inspector` spawn record and agent id first; OR must not impersonate Inspector.
+- Every `inspector_check` requires a real reusable `inspector` slot spawn
+  record and agent id first; OR must not impersonate Inspector or create a new
+  inspector for each event.
 - Every G1 trace response must expose `orchestrator` and `inspector` fields.
 - Inspector is passive: it records trace coverage/checkpoint status and does not approve or block in place of OR/user.
 

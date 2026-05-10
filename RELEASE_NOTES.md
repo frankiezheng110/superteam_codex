@@ -1,39 +1,31 @@
-# SuperTeam Codex 1.1.3 Release Notes
+# SuperTeam Codex 1.1.5 Release Notes
 
-Release date: 2026-05-09
+Release date: 2026-05-10
 
 ## Summary
 
-SuperTeam Codex 1.1.3 is a patch release that removes SuperTeam Codex from the
-Codex global plugin hook surface. It keeps the complete G1-G7 Codex-native
-runtime and internal hook-trace behavior from 1.1.2.
+SuperTeam Codex 1.1.5 fixes Codex agent identity handling. SuperTeam roles now
+bind to fixed original agent definition files and reusable role slots, so Codex
+random display names cannot cause repeated agent creation for the same role.
 
 ## Release Highlights
 
-- The plugin manifest exposes skills only and does not declare `hooks`.
-- Hook-trace enforcement remains inside `superteam_codex.runtime.hooks` and the
-  explicit workflow commands.
-- Ordinary Codex sessions do not invoke SuperTeam hooks when no SuperTeam
-  workflow is active.
-- Canonical source remains `https://github.com/frankiezheng110/superteam_codex`.
-- Full G1-G7 event tree and CLI surface.
-- G4 execution with TDD RED/GREEN evidence and pre-work UI guidance.
-- G5 review with reviewer/designer gates and return-to-G4 repair on BLOCK.
-- G6 verification with fresh evidence and return-to-G4 repair on FAIL or
-  INCOMPLETE.
-- G7 finish with inspector report, writer handoff, retrospective, and lifecycle
-  closure.
-- Original SuperTeam role binding through agent-definition path and SHA-256.
-- Local install script that copies the plugin and refreshes the Codex runtime
-  cache without shipping transient run state.
+- `mode.json.agent_roster.roles.<role>` records the original SuperTeam agent
+  definition path and `rules_sha256` for every role.
+- Runtime identity is `role + agent_definition_path + rules_sha256`, not the
+  Codex-generated display name.
+- `mode.json.agent_slots.<role>.agent_id` allows only one Codex agent instance
+  per role in a run.
+- Later same-role work must use `send_input`; duplicate `spawn_agent` attempts
+  are rejected by state validation and native hooks.
+- G1-G7 skills now require reading `agent_roster` before role calls.
+- Existing 1.1.4 structured contract gates remain intact.
 
 ## Verification
 
-Run before tagging:
-
 ```powershell
+python -m compileall superteam_codex tests
 python -m unittest discover -s tests
-python -m compileall superteam_codex
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Test-SuperTeamCodex.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\New-ReleaseArchive.ps1
 ```
@@ -45,7 +37,7 @@ $installer = Join-Path $env:TEMP "Install-FromGitHub.ps1"
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/frankiezheng110/superteam_codex/main/scripts/Install-FromGitHub.ps1" `
   -OutFile $installer
-powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.3
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.5
 ```
 
 ## Release Asset
@@ -53,5 +45,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer -Ref v1.1.3
 The clean source archive should be generated at:
 
 ```text
-dist/superteam-codex-1.1.3.zip
+dist/superteam-codex-1.1.5.zip
 ```

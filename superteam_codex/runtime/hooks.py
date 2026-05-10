@@ -14,6 +14,11 @@ from .workspace import SUPER_DIR_NAME, Workspace, utc_now
 
 
 WRITE_TOOLS = {"apply_patch", "shell_command"}
+SPAWN_AGENT_TOOLS = {
+    "spawn_agent",
+    "functions.spawn_agent",
+    "multi_tool_use.parallel.spawn_agent",
+}
 PENCIL_WRITE_TOOLS = {
     "batch-design",
     "batch_design",
@@ -80,6 +85,11 @@ def _is_write_payload(payload: dict[str, Any]) -> bool:
         return True
     text = json.dumps(payload, ensure_ascii=False)
     return bool(WRITE_COMMAND_RE.search(text))
+
+
+def _is_spawn_agent_payload(payload: dict[str, Any]) -> bool:
+    tool = str(payload.get("tool") or payload.get("tool_name") or payload.get("name") or "")
+    return tool in SPAWN_AGENT_TOOLS or tool.endswith(".spawn_agent")
 
 
 def _payload_mentions_superteam_state(payload: dict[str, Any]) -> bool:
@@ -205,6 +215,32 @@ def handle_event(event: str, payload: dict[str, Any]) -> tuple[int, str]:
             message = write_guidance_message(mode, payload)
             if message:
                 return finish(0, message)
+
+    if event == "PreToolUse" and _is_spawn_agent_payload(payload):
+        expected_agent = str((mode.get("orchestrator") or {}).get("expected_agent") or "").strip()
+        if not expected_agent:
+            return finish(
+                2,
+                "SuperTeam Codex blocked raw spawn_agent. No fixed agent_roster role is pending for the active event; do not create ad hoc agents.",
+            )
+        slots = mode.get("agent_slots") if isinstance(mode.get("agent_slots"), dict) else {}
+        slot = slots.get(expected_agent) if isinstance(slots, dict) else None
+        if isinstance(slot, dict) and str(slot.get("agent_id") or "").strip():
+            return finish(
+                2,
+                f"SuperTeam Codex blocked duplicate spawn_agent for {expected_agent}. Use send_input to mode.json.agent_slots.{expected_agent}.agent_id.",
+            )
+        roster = mode.get("agent_roster") if isinstance(mode.get("agent_roster"), dict) else {}
+        roles = roster.get("roles") if isinstance(roster.get("roles"), dict) else {}
+        if expected_agent not in roles:
+            return finish(
+                2,
+                f"SuperTeam Codex blocked spawn_agent for unregistered role {expected_agent}. Fixed agent definitions must exist in mode.json.agent_roster.",
+            )
+        return finish(
+            0,
+            f"Initialize fixed SuperTeam role {expected_agent} only once, using mode.json.agent_roster.roles.{expected_agent}; record the returned agent_id in mode.json.agent_slots.{expected_agent}.",
+        )
 
     if event == "PostToolUse" and stage == "execute":
         observed = observe_test_result(mode, payload)
